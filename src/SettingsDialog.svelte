@@ -29,6 +29,7 @@
                             <option value="38400">38400</option>
                             <option value="57600">57600</option>
                             <option value="115200">115200</option>
+                            <option value="250000">250000</option>
                         </select>
                     </div>
                 </div>
