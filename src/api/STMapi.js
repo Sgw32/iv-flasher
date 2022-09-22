@@ -276,20 +276,28 @@ export class STMApi {
             this.serial.write(u8a([CMD_GET, 0xFF ^ CMD_GET]))
                 .then(() => this.readResponse())
                 .then(async (resp) => {
-                    let response = Array.from(resp);
+                    let response = new Uint8Array(resp);
                     if (response[0] !== ACK) {
                         throw new Error('Unexpected response');
                     }
 
-                    if (response.length === 1) { // TODO stm8 sends the bytes with delay. Always or on in reply mode only? 
+                    // if (response.length === 1) { // TODO stm8 sends the bytes with delay. Always or on in reply mode only?
+                    //     let res = await this.readResponse();
+                    //     response[1] = res[0];
+                    //     res = await this.readResponse(); // bl version
+                    //     response[2] = res[0];
+                    //     for (let i = 0; i <= response[1]; i++) {
+                    //         res = await this.readResponse();
+                    //         response[3 + i] = res[0];
+                    //     }
+                    // }
+
+                    while (response.length === 1 || response.length < response[1] + 4) {
                         let res = await this.readResponse();
-                        response[1] = res[0];
-                        res = await this.readResponse(); // bl version
-                        response[2] = res[0];
-                        for (let i = 0; i <= response[1]; i++) {
-                            res = await this.readResponse();
-                            response[3 + i] = res[0];
-                        }
+                        response = new Uint8Array([
+                            ...response,
+                            ...res
+                        ]);
                     }
 
                     let info = new InfoGET();
@@ -588,10 +596,19 @@ export class STMApi {
 
             this.serial.write(u8a([CMD_GID, 0xFF ^ CMD_GID]))
                 .then(() => this.readResponse())
-                .then(response => {
+                .then(async (response) => {
                     if (response[0] !== ACK) {
                         throw new Error('Unexpected response');
                     }
+
+                    while (response.length === 1 || response.length < response[1] + 4) {
+                        let res = await this.readResponse();
+                        response = new Uint8Array([
+                            ...response,
+                            ...res
+                        ]);
+                    }
+
                     let pid = '0x' + tools.b2hexstr(response[2]) + tools.b2hexstr(response[3]);
                     resolve(pid);
                 })
