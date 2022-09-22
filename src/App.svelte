@@ -106,7 +106,10 @@
                     let rec = records[i];
 
                     if (rec.type === 'data') {
-                        await stmApi.write(rec.data, rec.address);
+                        let before_log = logs;
+                        await stmApi.write(rec.data, rec.address, (i, blocksCount) => {
+                            logs = before_log + 'Writing block ' + (i + 1) + '/' + blocksCount + '\n';
+                        });
                     } else if (rec.type === 'start') {
                         log(
                             'Start address detected: 0x' +
