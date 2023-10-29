@@ -1,7 +1,7 @@
 import Serial from './Serial'
 
-function log(msg) {
-    console.log('[WebSerial] ' + msg);
+function info(msg) {
+    console.info('[WebSerial] ' + msg);
 }
 
 export default class WebSerial extends Serial {
@@ -33,12 +33,12 @@ export default class WebSerial extends Serial {
      */
     open(parameter) {
         return new Promise((resolve, reject) => {
-            log('-> open ' + JSON.stringify(parameter));
+            info('-> open ' + JSON.stringify(parameter));
             this._port.open(parameter)
                 .then(() => {
                     this._reader = this._port.readable.getReader();
                     this._writer = this._port.writable.getWriter();
-                    log('<- open');
+                    info('<- open');
                     resolve();
                 })
                 .catch(reject);
@@ -50,7 +50,7 @@ export default class WebSerial extends Serial {
      */
     close() {
         return new Promise((resolve, reject) => {
-            log('-> close');
+            info('-> close');
             this._reader.cancel();
             this._writer.close();
             Promise.all([this._reader.closed, this._writer.closed])
@@ -58,14 +58,14 @@ export default class WebSerial extends Serial {
                 .then(() => {
                     this._reader = null;
                     this._writer = null;
-                    log('<- close');
+                    info('<- close');
                     this.onDisconnect();
                     resolve();
                 })
                 .catch((err) => {
                     this._reader = null;
                     this._writer = null;
-                    log('<- close reject');
+                    info('<- close reject');
                     reject(err);
                 });
         });
@@ -76,10 +76,11 @@ export default class WebSerial extends Serial {
      */
     read() {
         return new Promise(async (resolve, reject) => {
-            log('-> read');
+            info('-> read');
 
             this._reader.read()
                 .then((result) => {
+                    console.debug(result);
                     resolve(result.value);
                 })
                 .catch(reject);
@@ -92,8 +93,8 @@ export default class WebSerial extends Serial {
      */
     write(data) {
         return new Promise((resolve, reject) => {
-            log('-> write');
-            console.log(data);
+            info('-> write');
+            console.debug(data);
             this._writer.write(data.buffer)
                 .then(resolve)
                 .catch(reject);
@@ -106,8 +107,8 @@ export default class WebSerial extends Serial {
      */
     control(lineParams) {
         return new Promise((resolve, reject) => {
-            log('-> control');
-            console.log(lineParams)
+            info('-> control');
+            console.debug(lineParams)
             this._port.setSignals(lineParams)
                 .then(() => {
                     resolve();

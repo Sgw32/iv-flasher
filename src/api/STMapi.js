@@ -7,8 +7,8 @@ const MAX_WRITE_BLOCK_SIZE_STM8 = 128;
 
 // use control signals to trigger bootloader activation and device hardware reset
 // false = pin hight, true = pin low
-const RESET_PIN = "dataTerminalReady";
-const BOOT0_PIN = "requestToSend"; // STM32
+const RTS_PIN = "requestToSend";
+const DTR_PIN = "dataTerminalReady"; // STM32
 const PIN_HIGH = false;
 const PIN_LOW = true;
 
@@ -127,10 +127,10 @@ export class STMApi {
             })
                 .then(() => {
                     // set init state of the NRST pin to high
-                    // for stm32 set the BOOT0 pin to low. 
+                    // for stm32 set the BOOT0 pin to low.
                     let signal = {}
-                    signal[RESET_PIN] = PIN_HIGH;
-                    signal[BOOT0_PIN] = PIN_LOW;
+                    signal[RTS_PIN] = PIN_HIGH;
+                    signal[DTR_PIN] = PIN_HIGH;
                     return this.serial.control(signal);
                 })
                 .then(() => this.activateBootloader())
@@ -146,7 +146,8 @@ export class STMApi {
     async disconnect() {
         return new Promise((resolve, reject) => {
             let signal = {}
-            signal[BOOT0_PIN] = PIN_LOW;
+            signal[DTR_PIN] = PIN_HIGH;
+            signal[RTS_PIN] = PIN_HIGH;
             this.serial.control(signal)
                 .then(() => this.resetTarget())
                 .then(() => this.serial.close())
@@ -157,7 +158,7 @@ export class STMApi {
     }
 
     /**
-     * Write data to memory. If the data exceeds the max frame size it will be splitted and sent in chunks automatically 
+     * Write data to memory. If the data exceeds the max frame size it will be splitted and sent in chunks automatically
      * @param {Uint8Array} data Data to write
      * @param {number} address Address to write at
      * @param {Function} onProgress Callback to notify progress
@@ -275,20 +276,28 @@ export class STMApi {
             this.serial.write(u8a([CMD_GET, 0xFF ^ CMD_GET]))
                 .then(() => this.readResponse())
                 .then(async (resp) => {
-                    let response = Array.from(resp);
+                    let response = new Uint8Array(resp);
                     if (response[0] !== ACK) {
                         throw new Error('Unexpected response');
                     }
 
-                    if (response.length === 1) { // TODO stm8 sends the bytes with delay. Always or on in reply mode only? 
+                    // if (response.length === 1) { // TODO stm8 sends the bytes with delay. Always or on in reply mode only?
+                    //     let res = await this.readResponse();
+                    //     response[1] = res[0];
+                    //     res = await this.readResponse(); // bl version
+                    //     response[2] = res[0];
+                    //     for (let i = 0; i <= response[1]; i++) {
+                    //         res = await this.readResponse();
+                    //         response[3 + i] = res[0];
+                    //     }
+                    // }
+
+                    while (response.length === 1 || response.length < response[1] + 4) {
                         let res = await this.readResponse();
-                        response[1] = res[0];
-                        res = await this.readResponse(); // bl version
-                        response[2] = res[0];
-                        for (let i = 0; i <= response[1]; i++) {
-                            res = await this.readResponse();
-                            response[3 + i] = res[0];
-                        }
+                        response = new Uint8Array([
+                            ...response,
+                            ...res
+                        ]);
                     }
 
                     let info = new InfoGET();
@@ -531,7 +540,7 @@ export class STMApi {
             // Frame: number of bytes to be written (1 byte), the data (N + 1 bytes) (multiple of 4) and checksum
             let checksum = this.calcChecksum(data, true);
             let frame = new Uint8Array(data.length + 2);
-            frame[0] = [data.length - 1]; // 
+            frame[0] = [data.length - 1]; //
             frame.set(data, 1);
             frame[frame.length - 1] = checksum;
 
@@ -587,10 +596,19 @@ export class STMApi {
 
             this.serial.write(u8a([CMD_GID, 0xFF ^ CMD_GID]))
                 .then(() => this.readResponse())
-                .then(response => {
+                .then(async (response) => {
                     if (response[0] !== ACK) {
                         throw new Error('Unexpected response');
                     }
+
+                    while (response.length === 1 || response.length < response[1] + 4) {
+                        let res = await this.readResponse();
+                        response = new Uint8Array([
+                            ...response,
+                            ...res
+                        ]);
+                    }
+
                     let pid = '0x' + tools.b2hexstr(response[2]) + tools.b2hexstr(response[3]);
                     resolve(pid);
                 })
@@ -714,14 +732,7 @@ export class STMApi {
                 return;
             }
 
-            let signal = {};
-            signal[BOOT0_PIN] = PIN_HIGH;
-            this.serial.control(signal) // set BOOT0 pin hight for STM32
-                .then(() => this.resetTarget())
-                .then(() => {
-                    signal[BOOT0_PIN] = PIN_LOW;
-                    return this.serial.control(signal) // return BOOT0 to low to allow normal code execution after reset
-                })
+            this.enterBootMode()
                 .then(() => this.serial.write(u8a([SYNCHR])))
                 .then(() => this.serial.read())
                 .then(response => {
@@ -743,7 +754,52 @@ export class STMApi {
     }
 
     /**
-     * Resets the target by toggling a control pin defined in RESET_PIN
+     * Resets the target by toggling a control pin defined in RTS_PIN
+     * @private
+     * @returns {Promise}
+     */
+     async enterBootMode() {
+        return new Promise((resolve, reject) => {
+            logger.log('Enter boot mode target...');
+            let signal = {};
+
+            if (!this.serial.isOpen()) {
+                reject(new Error('Port must be opened for device reset'));
+                return;
+            }
+
+    // def boot(a: float, b: float) -> None:
+        // ser.dtr = 0
+        // ser.rts = 1
+        // time.sleep(a)
+        // ser.dtr = 1
+        // ser.rts = 0
+        // time.sleep(b)
+        // ser.dtr = 0
+
+            signal[DTR_PIN] = PIN_HIGH;
+            signal[RTS_PIN] = PIN_LOW;
+            this.serial.control(signal)
+                .then(() => new Promise(resolve => setTimeout(resolve, 200)))
+                .then(() => {
+                    signal[DTR_PIN] = PIN_LOW;
+                    signal[RTS_PIN] = PIN_HIGH;
+                    return this.serial.control(signal);
+                })
+                .then(() => new Promise(resolve => setTimeout(resolve, 200)))
+                .then(() => {
+                    signal[DTR_PIN] = PIN_HIGH;
+                    return this.serial.control(signal);
+                })
+                .then(() => {
+                    resolve()
+                })
+                .catch(reject);
+        });
+    }
+
+    /**
+     * Resets the target by toggling a control pin defined in RTS_PIN
      * @private
      * @returns {Promise}
      */
@@ -757,10 +813,10 @@ export class STMApi {
                 return;
             }
 
-            signal[RESET_PIN] = PIN_LOW;
+            signal[RTS_PIN] = PIN_LOW;
             this.serial.control(signal)
                 .then(() => {
-                    signal[RESET_PIN] = PIN_HIGH;
+                    signal[RTS_PIN] = PIN_HIGH;
                     return this.serial.control(signal);
                 })
                 .then(() => {
