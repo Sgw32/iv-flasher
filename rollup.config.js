@@ -2,6 +2,7 @@ import svelte from 'rollup-plugin-svelte'
 import { terser } from 'rollup-plugin-terser'
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
+import serve from 'rollup-plugin-serve'
 
 export default {
     input: 'src/main.js',
@@ -20,6 +21,7 @@ export default {
             browser: true,
             dedupe: ['svelte']
         }),
+        serve('public'),
         commonjs()
         //terser()
     ]
