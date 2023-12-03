@@ -58,7 +58,7 @@
         serial.onDisconnect = () => {
             sending = false;
             connectionState = DISCONNECTED;
-            logs = '';
+            //logs = '';
         };
         stmApi = new STMApi(serial);
     }
@@ -150,6 +150,7 @@
                 .connect({
                     replyMode: settings.replyMode,
                     baudrate: settings.baudrate,
+                    mcutype: settings.mcuType
                 })
                 .then(() => {
                     connectionState = CONNECTED;
@@ -160,6 +161,7 @@
                     deviceInfo.commands = info.commands;
                     deviceInfo.family = info.getFamily();
                     if (deviceInfo.family === 'STM32') {
+                        //deviceInfo.family = '32-bit'
                         return stmApi.cmdGID();
                     } else {
                         return Promise.resolve('-');
@@ -170,12 +172,20 @@
                 })
                 .catch((err) => {
                     log(err);
-                    error = err.message;
+                    console.log(err);
+                    if (err!=undefined)
+                    {
+                        error = err.message;    
+                    }
                     connectionState = DISCONNECTED;
                 });
         } else {
             stmApi.disconnect().catch((err) => {
-                error = err.message;
+                if (err!=undefined)
+                {
+                    error = err.message;    
+                }
+                console.log(err)
             });
         }
     }
@@ -240,7 +250,7 @@
     <div class="navbar has-shadow">
         <div class="navbar-brand">
             <h1 class="navbar-item is-size-5 mr-3 pt-1">
-                Web-STM-Flasher<span id="subtitle" class="is-size-6">serial</span>
+                IV-Flasher<span id="subtitle" class="is-size-6">serial</span>
             </h1>
 
             <a
@@ -310,6 +320,14 @@
                     <span class="icon"><i class="fa fa-cog" /></span>
                     <span>Settings</span>
                 </a>
+                <div class="navbar-item">
+                   <div class="select">
+                        <select id="mcuType" bind:value={settings.mcutype}>
+                            <option value="Artery">Artery</option>
+                            <option value="STM32">STM32</option>
+                        </select>
+                    </div>
+                </div>
             </div>
 
             <div class="navbar-end">
@@ -349,7 +367,7 @@
                         </div>
                         <div class="level-right">
                             <div class="level-item">
-                                <div class="value">{deviceInfo.family}</div>
+                                <div class="value">{(deviceInfo.family=='STM32') ? '32-bit' : '8-bit'}</div>
                             </div>
                         </div>
                     </div>

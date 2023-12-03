@@ -88,6 +88,36 @@ export default class WebSerial extends Serial {
     }
 
     /**
+     * Read data from the serial port with a timeout
+     * @param {number} timeoutMilliseconds - Timeout in milliseconds
+     * @returns {Promise<Buffer>} - Resolves with the received data or rejects on error or timeout
+     */
+    readWithTimeout(timeoutMilliseconds) {
+        return new Promise(async (resolve, reject) => {
+            info('-> readWithTimeout');
+            
+            // Create a timeout promise
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => {
+                    reject(new Error('Serial read operation timed out'));
+                }, timeoutMilliseconds);
+            });
+
+            // Race between the read operation and the timeout promise
+            Promise.race([this._reader.read(), timeoutPromise])
+                .then((result) => {
+                    if (result instanceof Error) {
+                        reject(result); // Propagate any error from the timeout promise
+                    } else {
+                        console.debug(result);
+                        resolve(result.value);
+                    }
+                })
+                .catch(reject);
+        });
+    }
+
+    /**
      * Writes data to serial port
      * @param {Uint8Array} data Data to send.
      */

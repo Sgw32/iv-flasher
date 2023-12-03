@@ -1,5 +1,6 @@
 import tools from '../tools';
 import logger from './Logger';
+import settings from './Settings';
 
 const MAX_WRITE_BLOCK_SIZE_STM32 = 256;
 const MAX_READ_BLOCK_SIZE = 256;
@@ -13,6 +14,8 @@ const PIN_HIGH = false;
 const PIN_LOW = true;
 
 const SYNCHR = 0x7F;
+const SYNCHR_ARTERY = 0x7F; //Set host identification number
+
 const ACK = 0x79;
 const NACK = 0x1F;
 
@@ -135,7 +138,12 @@ export class STMApi {
                 })
                 .then(() => this.activateBootloader())
                 .then(resolve)
-                .catch(reject);
+                .catch(error => {
+                    if (this.serial.isOpen()) {
+                        this.serial.close();
+                    }
+                    reject(error);
+                })
         });
     }
 
@@ -727,29 +735,43 @@ export class STMApi {
     async activateBootloader() {
         return new Promise((resolve, reject) => {
             logger.log('Activating bootloader...');
+            logger.log('Using '+settings.mcutype + ' mode');
             if (!this.serial.isOpen()) {
                 reject(new Error('Port must be opened before activating the bootloader'));
                 return;
             }
-
+            let synchr_byte = (settings.mcutype=="Artery") ? SYNCHR_ARTERY : SYNCHR;
             this.enterBootMode()
-                .then(() => this.serial.write(u8a([SYNCHR])))
-                .then(() => this.serial.read())
+                .then(() => {
+                    logger.log('Writing sync byte.');
+                    this.serial.write(u8a([synchr_byte]))
+                })
+                .then(() => {
+                    logger.log('Waiting for response...');
+                    let res = this.serial.readWithTimeout(200);
+                    return res;
+                })
                 .then(response => {
                     if (response[0] === ACK) {
                         if (this.replyMode) {
+                            logger.log('Sending ACK.');
                             return this.serial.write(u8a([ACK]));
                         }
                         return Promise.resolve();
                     } else {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response for sync byte. Check device family');
                     }
                 })
                 .then(() => {
                     logger.log('Bootloader is ready for commands');
                     resolve();
                 })
-                .catch(reject);
+                .catch(error => 
+                {
+                    console.log("Rejected with error");
+                    console.log(error);
+                    reject(error);
+                });
         });
     }
 
