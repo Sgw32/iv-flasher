@@ -132,9 +132,10 @@ export class STMApi {
                     // set init state of the NRST pin to high
                     // for stm32 set the BOOT0 pin to low.
                     let signal = {}
-                    signal[RTS_PIN] = PIN_HIGH;
-                    signal[DTR_PIN] = PIN_HIGH;
+                    signal[RTS_PIN] = PIN_HIGH; //RESET=1
+                    signal[DTR_PIN] = PIN_LOW; //BOOT0=0
                     return this.serial.control(signal);
+                    
                 })
                 .then(() => this.activateBootloader())
                 .then(resolve)
@@ -154,8 +155,8 @@ export class STMApi {
     async disconnect() {
         return new Promise((resolve, reject) => {
             let signal = {}
-            signal[DTR_PIN] = PIN_HIGH;
-            signal[RTS_PIN] = PIN_HIGH;
+            signal[DTR_PIN] = PIN_LOW; //BOOT=0
+            signal[RTS_PIN] = PIN_HIGH; //RESET=1
             this.serial.control(signal)
                 .then(() => this.resetTarget())
                 .then(() => this.serial.close())
@@ -740,6 +741,8 @@ export class STMApi {
                 reject(new Error('Port must be opened before activating the bootloader'));
                 return;
             }
+            
+
             let synchr_byte = (settings.mcutype=="Artery") ? SYNCHR_ARTERY : SYNCHR;
             this.enterBootMode()
                 .then(() => {
@@ -748,7 +751,7 @@ export class STMApi {
                 })
                 .then(() => {
                     logger.log('Waiting for response...');
-                    let res = this.serial.readWithTimeout(200);
+                    let res = this.serial.readWithTimeout(1000);
                     return res;
                 })
                 .then(response => {
@@ -799,18 +802,19 @@ export class STMApi {
         // time.sleep(b)
         // ser.dtr = 0
 
-            signal[DTR_PIN] = PIN_HIGH;
-            signal[RTS_PIN] = PIN_LOW;
+            signal[DTR_PIN] = PIN_HIGH; //boot=1
+            signal[RTS_PIN] = PIN_LOW; //reset=0
             this.serial.control(signal)
-                .then(() => new Promise(resolve => setTimeout(resolve, 200)))
+                .then(() => new Promise(resolve => setTimeout(resolve, 500)))
                 .then(() => {
-                    signal[DTR_PIN] = PIN_LOW;
-                    signal[RTS_PIN] = PIN_HIGH;
+                    signal[DTR_PIN] = PIN_HIGH; //boot=1
+                    signal[RTS_PIN] = PIN_HIGH; //reset=1
                     return this.serial.control(signal);
                 })
-                .then(() => new Promise(resolve => setTimeout(resolve, 200)))
+                .then(() => new Promise(resolve => setTimeout(resolve, 500)))
                 .then(() => {
-                    signal[DTR_PIN] = PIN_HIGH;
+                    signal[DTR_PIN] = PIN_LOW; //boot=0
+                    signal[RTS_PIN] = PIN_HIGH; //reset=1
                     return this.serial.control(signal);
                 })
                 .then(() => {
@@ -835,10 +839,14 @@ export class STMApi {
                 return;
             }
 
-            signal[RTS_PIN] = PIN_LOW;
+            signal[RTS_PIN] = PIN_LOW; //RESET=0
             this.serial.control(signal)
                 .then(() => {
-                    signal[RTS_PIN] = PIN_HIGH;
+                    logger.log('Resetting...');
+                    setTimeout(resolve, 200);
+                })
+                .then(() => {
+                    signal[RTS_PIN] = PIN_HIGH; //RESET=1
                     return this.serial.control(signal);
                 })
                 .then(() => {
