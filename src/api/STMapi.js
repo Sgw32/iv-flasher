@@ -85,6 +85,8 @@ export class STMApi {
         this.commands = [];
         // name of the stm8 routines file
         this.stm8RoutinesFile = null;
+        //Access MODBUS and not Bootloader
+        this.modbusEnabled = false;
     }
 
     /**
@@ -123,7 +125,7 @@ export class STMApi {
             }
 
             this.replyMode = params.replyMode || false;
-
+            this.modbusEnabled = params.modbus || false;
             this.serial.open({
                 baudRate: parseInt(params.baudrate, 10),
                 parity: this.replyMode ? 'none' : 'even'
@@ -141,7 +143,9 @@ export class STMApi {
                 .then(resolve)
                 .catch(error => {
                     if (this.serial.isOpen()) {
-                        this.serial.close();
+                        this.serial.close(function (err) {
+                            console.log('port closed', err);
+                        });
                     }
                     reject(error);
                 })

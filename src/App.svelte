@@ -5,10 +5,10 @@
     import SettingsDialog from './SettingsDialog.svelte';
     import NotSupportedDialog from './NotSupportedDialog.svelte';
     import { fade } from 'svelte/transition';
+
     import WebSerial from './api/WebSerial';
     import { STMApi } from './api/STMapi';
     import tools from './tools';
-
     const DISCONNECTED = 'disconnected';
     const CONNECTING = 'connecting';
     const CONNECTED = 'connected';
@@ -27,6 +27,10 @@
         bl: '-',
         pid: '-',
         commands: [],
+        temperature: 999,
+        inp0: 0,
+        inp1: 0,
+        revision: 999
     };
     let stm8selected = false;
     let sending = false;
@@ -125,6 +129,7 @@
                     log('Starting code execution');
                     await stmApi.cmdGO(startAddress);
                     stmApi.disconnect();
+                    connectionState = DISCONNECTED;
                 }
 
                 sending = false;
@@ -150,7 +155,8 @@
                 .connect({
                     replyMode: settings.replyMode,
                     baudrate: settings.baudrate,
-                    mcutype: settings.mcuType
+                    mcutype: settings.mcuType,
+                    modbus: settings._modbus
                 })
                 .then(() => {
                     connectionState = CONNECTED;
@@ -169,6 +175,17 @@
                 })
                 .then((pid) => {
                     deviceInfo.pid = pid;
+                })
+                .then(() => 
+                {
+                    if (settings._modbus)
+                    {
+                        log("Modbus enabled");
+                    }
+                    else
+                    {
+                        log("Modbus not enabled");
+                    }
                 })
                 .catch((err) => {
                     log(err);
@@ -433,9 +450,64 @@
                     <pre>{logs}</pre>
                 </div>
             </div>
+            <div class="column is-narrow" style="min-width: 360px;">
+                <div class="box" id="devinfo">
+                    <p class="title is-5">Sensors data</p>
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <div class="label">Revision:</div>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <div class="value">{(deviceInfo.revision)}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <div class="label">Temperature:</div>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <div class="value">{deviceInfo.temperature}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <div class="label">Input 0:</div>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <div class="value">{deviceInfo.inp0}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <div class="label">Input 1:</div>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <div class="value">{deviceInfo.inp1}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
         </div>
     </div>
 
+    
     {#if showPortDialog}
         <PortDialog
             on:close={() => (showPortDialog = false)}

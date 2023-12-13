@@ -63,6 +63,13 @@
                             bind:checked={settings.replyMode} /> Use Reply mode (STM8)
                     </label>
                 </div>
+                <div class="control">
+                    <label class="checkbox">
+                        <input
+                            type="checkbox"
+                            bind:checked={settings.modbus} /> Access MODBUS
+                    </label>
+                </div>
                 <div class="help">
                     <div>
                         Some STM8 device interfaces require "reply" mode for
