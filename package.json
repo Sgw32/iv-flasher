@@ -35,6 +35,8 @@
   "dependencies": {
     "jsmodbus": "^4.0.6",
     "modbus-serial": "^8.0.16",
+    "svelte-awesome-color-picker": "^2.4.8",
+    "svelte-color-picker": "^1.0.7",
     "svelte-tabs": "^1.1.0"
   }
 }

@@ -61,6 +61,12 @@ export class InfoGET {
         this.blVersion = null;
         // List of supported commands
         this.commands = [];
+        this.inp0 = 0.0;
+        this.inp1 = 0.0;
+        this.range_min = 0.0;
+        this.range_max = 0.0;
+        this.revision = 0;
+        this.temperature = 999.0;
     }
 
     getFamily() {
@@ -128,7 +134,7 @@ export class STMApi {
             this.modbusEnabled = params.modbus || false;
             this.serial.open({
                 baudRate: parseInt(params.baudrate, 10),
-                parity: this.replyMode ? 'none' : 'even'
+                parity: (this.replyMode||this.modbusEnabled) ? 'none' : 'even'
             })
                 .then(() => {
                     // set init state of the NRST pin to high
@@ -260,14 +266,14 @@ export class STMApi {
                 .then(() => this.readResponse())
                 .then(response => {
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response while ACK erase ALL');
                     }
                     return this.serial.write(u8a(eraseFlash));
                 })
                 .then(() => this.readResponse())
                 .then(response => {
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response while erase ALL');
                     }
                     resolve();
                 })
@@ -286,12 +292,39 @@ export class STMApi {
                 return;
             }
 
-            this.serial.write(u8a([CMD_GET, 0xFF ^ CMD_GET]))
+            if (this.modbusEnabled)
+            {
+                //01 03 00 00 00 0D 84 0F
+                this.serial.write(u8a([0x01,0x03,0x00,0x00,0x00,0x0D,0x84,0x0F]))
+                .then(() => this.readResponse())
+                .then(async (resp) => {
+                    let response = new Uint8Array(resp);
+                    if (response[0] !== 0x1) {
+                        throw new Error('Unexpected MODBUS id');
+                    }
+                    console.log(resp);
+                    let info = new InfoGET();
+                    // 01 03 1A 00 04 FE F9 03 32 03 14 FF FF FF FF 11 B6 11 0F FF FF FF FF 00 00 03 E8 13 88 C6 3B (31 bytes)
+                    info.blVersion = (response[2] >> 4) + '.' + (response[2] & 0x0F);
+                    info.revision = (response[3] << 8) | (response[4] );
+                    info.temperature = (response[5] << 8) | (response[6] );
+                    info.inp0 = (response[7] << 8) | (response[8] );
+                    info.inp1 = (response[9] << 8) | (response[10] );
+
+                    console.log(info.temperature)
+                    
+                    resolve(info);
+                })
+                .catch(reject);
+            }
+            else
+            {
+                this.serial.write(u8a([CMD_GET, 0xFF ^ CMD_GET]))
                 .then(() => this.readResponse())
                 .then(async (resp) => {
                     let response = new Uint8Array(resp);
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response while ACK cmdGET');
                     }
 
                     // if (response.length === 1) { // TODO stm8 sends the bytes with delay. Always or on in reply mode only?
@@ -328,6 +361,7 @@ export class STMApi {
                     resolve(info);
                 })
                 .catch(reject);
+            }
         });
     }
 
@@ -357,14 +391,14 @@ export class STMApi {
                 .then(() => this.readResponse())
                 .then(response => {
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response while ACK CMD GO');
                     }
                     return this.serial.write(u8a(addressFrame));
                 })
                 .then(() => this.readResponse())
                 .then(response => {
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response while CMD GO');
                     }
                     resolve();
                 })
@@ -404,14 +438,14 @@ export class STMApi {
                 .then(() => this.readResponse())
                 .then(response => {
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response while ACK cmdREAD');
                     }
                     return this.serial.write(u8a(addressFrame));
                 })
                 .then(() => this.readResponse())
                 .then(response => {
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response while ACK cmdREAD address');
                     }
                     // The number of bytes to be read -1 (0 <= N <= 255)
                     return this.serial.write(u8a([bytesCount - 1, (bytesCount - 1) ^ 0xFF]));
@@ -419,7 +453,7 @@ export class STMApi {
                 .then(() => this.readResponse())
                 .then(async (response) => {
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response while ACK cmdREAD response');
                     }
 
                     if (this.replyMode) {
@@ -454,13 +488,13 @@ export class STMApi {
                 .then(() => this.readResponse())
                 .then(response => {
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response while ACK CMD_WPUN');
                     }
                     return this.readResponse();
                 })
                 .then(response => {
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response while CMD_WPUN');
                     }
                     resolve();
                 })
@@ -494,13 +528,13 @@ export class STMApi {
                 .then(() => this.readResponse())
                 .then(response => {
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response while ACK CMD_RDU_PRM');
                     }
                     return this.readResponse();
                 })
                 .then(response => {
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response while ACK CMD_RDU_PRM');
                     }
                     resolve();
                 })
@@ -564,21 +598,21 @@ export class STMApi {
                 .then(() => this.readResponse())
                 .then(response => {
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response while ACK cmdWRITE');
                     }
                     return this.serial.write(u8a(addressFrame));
                 })
                 .then(() => this.readResponse())
                 .then(response => {
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response while ACK cmdWRITE read');
                     }
                     return this.serial.write(frame);
                 })
                 .then(() => this.readResponse())
                 .then(response => {
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response while ACK cmdWRITE 2');
                     }
                     resolve();
                 })
@@ -611,7 +645,7 @@ export class STMApi {
                 .then(() => this.readResponse())
                 .then(async (response) => {
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response while ACK cmdGID');
                     }
 
                     while (response.length === 1 || response.length < response[1] + 4) {
@@ -655,7 +689,7 @@ export class STMApi {
                 .then(() => this.readResponse())
                 .then(response => {
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response');
+                        throw new Error('Unexpected response while ACK cmdGV');
                     }
 
                     let info = new InfoGV();
@@ -739,46 +773,54 @@ export class STMApi {
      */
     async activateBootloader() {
         return new Promise((resolve, reject) => {
-            logger.log('Activating bootloader...');
-            logger.log('Using '+settings.mcutype + ' mode');
-            if (!this.serial.isOpen()) {
-                reject(new Error('Port must be opened before activating the bootloader'));
-                return;
+            if (this.modbusEnabled)
+            {
+                logger.log('Using MODBUS.');
+                resolve();
             }
-            
+            else
+            {
+                logger.log('Activating bootloader...');
+                logger.log('Using '+settings.mcutype + ' mode');
+                if (!this.serial.isOpen()) {
+                    reject(new Error('Port must be opened before activating the bootloader'));
+                    return;
+                }
+                
 
-            let synchr_byte = (settings.mcutype=="Artery") ? SYNCHR_ARTERY : SYNCHR;
-            this.enterBootMode()
-                .then(() => {
-                    logger.log('Writing sync byte.');
-                    this.serial.write(u8a([synchr_byte]))
-                })
-                .then(() => {
-                    logger.log('Waiting for response...');
-                    let res = this.serial.readWithTimeout(1000);
-                    return res;
-                })
-                .then(response => {
-                    if (response[0] === ACK) {
-                        if (this.replyMode) {
-                            logger.log('Sending ACK.');
-                            return this.serial.write(u8a([ACK]));
+                let synchr_byte = (settings.mcutype=="Artery") ? SYNCHR_ARTERY : SYNCHR;
+                this.enterBootMode()
+                    .then(() => {
+                        logger.log('Writing sync byte.');
+                        this.serial.write(u8a([synchr_byte]))
+                    })
+                    .then(() => {
+                        logger.log('Waiting for response...');
+                        let res = this.serial.readWithTimeout(1000);
+                        return res;
+                    })
+                    .then(response => {
+                        if (response[0] === ACK) {
+                            if (this.replyMode) {
+                                logger.log('Sending ACK.');
+                                return this.serial.write(u8a([ACK]));
+                            }
+                            return Promise.resolve();
+                        } else {
+                            throw new Error('Unexpected response for sync byte. Check device family');
                         }
-                        return Promise.resolve();
-                    } else {
-                        throw new Error('Unexpected response for sync byte. Check device family');
-                    }
-                })
-                .then(() => {
-                    logger.log('Bootloader is ready for commands');
-                    resolve();
-                })
-                .catch(error => 
-                {
-                    console.log("Rejected with error");
-                    console.log(error);
-                    reject(error);
-                });
+                    })
+                    .then(() => {
+                        logger.log('Bootloader is ready for commands');
+                        resolve();
+                    })
+                    .catch(error => 
+                    {
+                        console.log("Rejected with error");
+                        console.log(error);
+                        reject(error);
+                    });
+            }
         });
     }
 

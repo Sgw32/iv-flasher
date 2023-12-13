@@ -1,6 +1,6 @@
 <script>
     import { createEventDispatcher, onMount } from 'svelte';
-
+    import ColorPicker, { ChromeVariant } from 'svelte-awesome-color-picker';
     const dispatch = createEventDispatcher();
     const close = () => dispatch('close');
 
@@ -44,11 +44,21 @@
 </style>
 
 <div class="modal is-active">
+    
     <div class="modal-background" />
     <div class="modal-card">
         <header class="modal-card-head">
             <p class="modal-card-title">Paired Ports</p>
+            
             <button class="delete" aria-label="close" on:click={onOkClick} />
+            <ColorPicker components={ChromeVariant} sliderDirection="horizontal" --picker-height="100px"
+	--picker-width="100px"
+	--slider-width="25px"
+	--picker-indicator-size="25px"
+	--picker-z-index="10"
+	--input-size="100px"
+	--focus-color="green"/>
+            
         </header>
         <section class="modal-card-body is-paddingless">
             {#each devices as dev, i}

@@ -9,6 +9,8 @@
     import WebSerial from './api/WebSerial';
     import { STMApi } from './api/STMapi';
     import tools from './tools';
+
+    
     const DISCONNECTED = 'disconnected';
     const CONNECTING = 'connecting';
     const CONNECTED = 'connected';
@@ -70,6 +72,10 @@
     function onOpenFile(event) {
         error = null;
         selectedFile = event.target.files[0];
+    }
+
+    function onGetData(go) {
+        stmApi.cmdGET();
     }
 
     function onFlash(go) {
@@ -146,6 +152,10 @@
             bl: '-',
             pid: '-',
             commands: [],
+            temperature: 999,
+            inp0: 0,
+            inp1: 0,
+            revision: 999
         };
 
         if (connectionState === DISCONNECTED) {
@@ -165,12 +175,25 @@
                 .then((info) => {
                     deviceInfo.bl = info.blVersion;
                     deviceInfo.commands = info.commands;
-                    deviceInfo.family = info.getFamily();
-                    if (deviceInfo.family === 'STM32') {
-                        //deviceInfo.family = '32-bit'
-                        return stmApi.cmdGID();
-                    } else {
-                        return Promise.resolve('-');
+                    
+                    if (!settings._modbus)
+                    {
+                        deviceInfo.family = info.getFamily();
+                        if (deviceInfo.family === 'STM32') {
+                            //deviceInfo.family = '32-bit'
+                            return stmApi.cmdGID();
+                        } else {
+                            return Promise.resolve('-');
+                        }
+                    }
+                    else
+                    {
+                        deviceInfo.family = "IV";
+                        deviceInfo.inp0 = info.inp0;
+                        deviceInfo.inp1 = info.inp1;
+                        deviceInfo.revision = info.revision;
+                        deviceInfo.temperature = info.temperature;
+                        return Promise.resolve('IV Modbus');
                     }
                 })
                 .then((pid) => {
@@ -336,6 +359,13 @@
                 <a class="navbar-item" on:click={onSettings}>
                     <span class="icon"><i class="fa fa-cog" /></span>
                     <span>Settings</span>
+                </a>
+                <a
+                    class="navbar-item"
+                    class:disabled={!settings._modbus || !isConnected}
+                    on:click={() => onGetData()}>
+                    <span class="icon"><i class="fa fa-car" /></span>
+                    <span>Get data</span>
                 </a>
                 <div class="navbar-item">
                    <div class="select">
