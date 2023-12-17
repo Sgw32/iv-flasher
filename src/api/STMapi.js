@@ -432,20 +432,22 @@ export class STMApi {
             }
 
             addressFrame = tools.num2a(address, 4);
+            console.log('AF'+u8a(addressFrame));
             addressFrame.push(this.calcChecksum(addressFrame, false));
-
+            console.log('with Checksum'+u8a(addressFrame));
             this.serial.write(u8a([CMD_READ, 0xFF ^ CMD_READ]))
                 .then(() => this.readResponse())
                 .then(response => {
                     if (response[0] !== ACK) {
                         throw new Error('Unexpected response while ACK cmdREAD');
                     }
+                    console.log(u8a(addressFrame));
                     return this.serial.write(u8a(addressFrame));
                 })
                 .then(() => this.readResponse())
                 .then(response => {
                     if (response[0] !== ACK) {
-                        throw new Error('Unexpected response while ACK cmdREAD address');
+                        throw new Error('Unexpected response while ACK cmdREAD address '+response[0]);
                     }
                     // The number of bytes to be read -1 (0 <= N <= 255)
                     return this.serial.write(u8a([bytesCount - 1, (bytesCount - 1) ^ 0xFF]));
@@ -456,12 +458,20 @@ export class STMApi {
                         throw new Error('Unexpected response while ACK cmdREAD response');
                     }
 
+                    while (response.length < 1+bytesCount) {
+                        let res = await this.readResponse();
+                        response = new Uint8Array([
+                            ...response,
+                            ...res
+                        ]);
+                    }
+
                     if (this.replyMode) {
                         for (let i = 0; i < bytesCount; i++) {
                             await this.readResponse(); // read and ignore
                         }
                     }
-                    resolve(result.subarray(1));
+                    resolve(response);
                 })
                 .catch(reject);
         });
@@ -655,7 +665,7 @@ export class STMApi {
                             ...res
                         ]);
                     }
-
+                    
                     let pid = '0x' + tools.b2hexstr(response[2]) + tools.b2hexstr(response[3]);
                     resolve(pid);
                 })

@@ -33,6 +33,7 @@
     "svelte": "^3.24.1"
   },
   "dependencies": {
+    "bulma-extensions": "^6.2.7",
     "jsmodbus": "^4.0.6",
     "modbus-serial": "^8.0.16",
     "svelte-awesome-color-picker": "^2.4.8",

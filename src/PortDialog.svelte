@@ -51,13 +51,7 @@
             <p class="modal-card-title">Paired Ports</p>
             
             <button class="delete" aria-label="close" on:click={onOkClick} />
-            <ColorPicker components={ChromeVariant} sliderDirection="horizontal" --picker-height="100px"
-	--picker-width="100px"
-	--slider-width="25px"
-	--picker-indicator-size="25px"
-	--picker-z-index="10"
-	--input-size="100px"
-	--focus-color="green"/>
+            
             
         </header>
         <section class="modal-card-body is-paddingless">

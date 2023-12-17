@@ -5,7 +5,7 @@
     import SettingsDialog from './SettingsDialog.svelte';
     import NotSupportedDialog from './NotSupportedDialog.svelte';
     import { fade } from 'svelte/transition';
-
+    import { onMount } from 'svelte';
     import WebSerial from './api/WebSerial';
     import { STMApi } from './api/STMapi';
     import tools from './tools';
@@ -75,7 +75,39 @@
     }
 
     function onGetData(go) {
-        stmApi.cmdGET();
+        
+        stmApi.cmdGET().then((info) => {
+            deviceInfo.bl = info.blVersion;
+            deviceInfo.commands = info.commands;
+            console.log("Setting data");
+            if (!settings._modbus)
+            {
+                deviceInfo.family = info.getFamily();
+                if (deviceInfo.family === 'STM32') {
+                    //deviceInfo.family = '32-bit'
+                    return stmApi.cmdGID();
+                } else {
+                    return Promise.resolve('-');
+                }
+            }
+            else
+            {
+                deviceInfo.family = "IV";
+                deviceInfo.inp0 = info.inp0;
+                deviceInfo.inp1 = info.inp1;
+                deviceInfo.revision = info.revision;
+                deviceInfo.temperature = info.temperature;
+                return Promise.resolve('IV Modbus');
+            }
+        })
+        .catch((err) => {
+            log(err);
+            console.log(err);
+            if (err!=undefined)
+            {
+                error = err.message;    
+            }
+        });
     }
 
     function onFlash(go) {
@@ -199,6 +231,14 @@
                 .then((pid) => {
                     deviceInfo.pid = pid;
                 })
+                .then(()=> {
+                    return stmApi.cmdREAD(0x1ffff7e8,12);
+                }
+                )
+                .then((data)=>{
+                    console.log(data);
+                    return Promise.resolve();
+                })
                 .then(() => 
                 {
                     if (settings._modbus)
@@ -259,6 +299,91 @@
             flash: stm8selected ? value : null,
         });
     }
+
+    function updateSliderValue(sl,val)
+    {
+        sl.value=val;
+    }
+
+    function updateCaptions()
+    {
+        updateSliderOutput(sliderRangeMinOut,sliderRangeMin,"Range Min(V): ");
+        updateSliderOutput(sliderRangeMaxOut,sliderRangeMax,"Range Max(V): ");
+        updateSliderOutput(sliderHStartOut,sliderHStart,"Hue Start: ");
+        updateSliderOutput(sliderHEndOut,sliderHEnd,"Hue End: ");
+        updateSliderOutput(sliderSOut,sliderS,"C.Sat: ");
+        updateSliderOutput(sliderVOut,sliderV,"C.Val: ");
+    }
+
+    function updateSliderOutput(el,sl,txt)
+    {
+        el.textContent = txt + sl.value;
+    }
+
+    onMount(() => {
+    // Get the slider and output elements
+    var sliderRangeMin = document.getElementById('sliderRangeMin');
+    var sliderRangeMinOut = document.querySelector('output[for="sliderRangeMin"]');
+    var sliderRangeMax = document.getElementById('sliderRangeMax');
+    var sliderRangeMaxOut = document.querySelector('output[for="sliderRangeMax"]');
+    
+
+    var sliderHStart = document.getElementById('sliderHStart');
+    var sliderHStartOut = document.querySelector('output[for="sliderHStart"]');
+
+    var sliderHEnd = document.getElementById('sliderHEnd');
+    var sliderHEndOut = document.querySelector('output[for="sliderHEnd"]');
+
+    var sliderS = document.getElementById('sliderS');
+    var sliderSOut = document.querySelector('output[for="sliderS"]');
+
+    var sliderV = document.getElementById('sliderV');
+    var sliderVOut = document.querySelector('output[for="sliderV"]');
+
+    // Add an event listener to detect changes in the slider value
+    sliderRangeMin.addEventListener('input', function() {
+      // Update the output caption with the current slider value
+      updateSliderOutput(sliderRangeMinOut,sliderRangeMin,"Range Min(V): ");
+    });
+
+    // Add an event listener to detect changes in the slider value
+    sliderRangeMax.addEventListener('input', function() {
+      // Update the output caption with the current slider value
+      updateSliderOutput(sliderRangeMaxOut,sliderRangeMax,"Range Max(V): ");
+    });
+
+    // Add an event listener to detect changes in the slider value
+    sliderHStart.addEventListener('input', function() {
+      // Update the output caption with the current slider value
+      updateSliderOutput(sliderHStartOut,sliderHStart,"Hue Start: ");
+    });
+
+    // Add an event listener to detect changes in the slider value
+    sliderHEnd.addEventListener('input', function() {
+      // Update the output caption with the current slider value
+      updateSliderOutput(sliderHEndOut,sliderHEnd,"Hue End: ");
+    });
+
+    // Add an event listener to detect changes in the slider value
+    sliderS.addEventListener('input', function() {
+      // Update the output caption with the current slider value
+      updateSliderOutput(sliderSOut,sliderS,"C.Sat: ");
+    });
+
+    // Add an event listener to detect changes in the slider value
+    sliderV.addEventListener('input', function() {
+      // Update the output caption with the current slider value
+      updateSliderOutput(sliderVOut,sliderV,"C.Val: ");
+    });
+
+    updateSliderOutput(sliderRangeMinOut,sliderRangeMin,"Range Min(V): ");
+    updateSliderOutput(sliderRangeMaxOut,sliderRangeMax,"Range Max(V): ");
+    updateSliderOutput(sliderHStartOut,sliderHStart,"Hue Start: ");
+    updateSliderOutput(sliderHEndOut,sliderHEnd,"Hue End: ");
+    updateSliderOutput(sliderSOut,sliderS,"C.Sat: ");
+    updateSliderOutput(sliderVOut,sliderV,"C.Val: ");
+    }
+    );
 
     $: isConnected = connectionState === CONNECTED;
     $: isConnecting = connectionState === CONNECTING;
@@ -442,6 +567,18 @@
                             </div>
                         </div>
                     </div>
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <div class="label">Serial number:</div>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <div class="value">{deviceInfo.pid}</div>
+                            </div>
+                        </div>
+                    </div>
                     <div
                         class="level is-mobile"
                         class:is-hidden={deviceInfo.family !== 'STM8'}>
@@ -531,6 +668,86 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderRangeMin" id="sliderRangeMinTooltip">50</output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderRangeMin" class="slider" min="0" max="12000" value="0" step="1" type="range">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderRangeMax" id="sliderRangeMaxTooltip">50</output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderRangeMax" class="slider" min="0" max="30000" value="10000" step="1" type="range">
+                            </div>  
+                        </div>
+                    </div>
+
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderHStart" id="sliderHStartTooltip">50</output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderHStart" class="slider" min="0" max="255" value="255" step="1" type="range">
+                            </div>  
+                        </div>
+                    </div>
+
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderHEnd" id="sliderHEndTooltip">50</output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderHEnd" class="slider" min="0" max="255" value="255" step="1" type="range">
+                            </div>  
+                        </div>
+                    </div>
+
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderS" id="sliderSTooltip">50</output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderS" class="slider" min="0" max="255" value="255" step="1" type="range">
+                            </div>  
+                        </div>
+                    </div>
+
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderV" id="sliderVTooltip">50</output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderV" class="slider" min="0" max="255" value="255" step="1" type="range">
+                            </div>  
+                        </div>
+                    </div>
+
+                    
                     
                 </div>
             </div>
