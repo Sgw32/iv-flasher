@@ -44,6 +44,28 @@ function u8a(array) {
     return new Uint8Array(array);
 }
 
+function CRC16_2(buf) {
+    let crc = 0xFFFF;
+  
+    for (let pos = 0; pos < buf.length; pos++) {
+      crc ^= buf[pos] & 0xFF; // XOR byte into the least significant byte of crc
+  
+      for (let i = 8; i !== 0; i--) {
+        // Loop over each bit
+        if ((crc & 0x0001) !== 0) {
+          // If the LSB is set
+          crc = (crc >> 1) ^ 0xA001; // Shift right and XOR 0xA001
+        } else {
+          // Else LSB is not set
+          crc >>= 1; // Just shift right
+        }
+      }
+    }
+  
+    // Note: This number has low and high bytes swapped, so use it accordingly (or swap bytes)
+    return crc;
+  }
+
 export class InfoGV {
     constructor() {
         // Bootloader version
@@ -63,10 +85,20 @@ export class InfoGET {
         this.commands = [];
         this.inp0 = 0.0;
         this.inp1 = 0.0;
+        this.source = 0;
         this.range_min = 0.0;
         this.range_max = 0.0;
         this.revision = 0;
         this.temperature = 999.0;
+        this.range_start = 0;
+        this.range_end= 0;
+        this.hue_start= 0;
+        this.hue_end= 0;
+        this.saturation= 0;
+        this.c_value= 0;
+        this.backlight_value = 0;
+        this.backlight_saturation = 0;
+        this.backlight_hue = 0;
     }
 
     getFamily() {
@@ -282,6 +314,41 @@ export class STMApi {
     }
 
     /**
+     * Async delay
+     * @param {*} ms 
+     * @returns 
+     */
+    async delay_nb(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    /**
+     * sets modbus parameter
+     * @param {*} reg 
+     * @param {*} val 
+     * @returns 
+     */
+    async cmdModbusWRITEReg(reg,val) {
+        return new Promise((resolve, reject) => {
+            if (!this.serial.isOpen()) {
+                reject(new Error('Connection must be established before sending commands'));
+                return;
+            }
+            if (this.modbusEnabled)
+            {
+                var modbusRequest = u8a([0x01,0x06,(reg&0xFF00)>>8,(reg&0xFF),(val&0xFF00)>>8,(val&0xFF)]);
+                var checksum = CRC16_2(modbusRequest);
+                var ch8a = u8a([checksum&0xFF,(checksum&0xFF00)>>8]);
+                const combinedArray = new Uint8Array(modbusRequest.length + ch8a.length);
+                combinedArray.set(modbusRequest, 0);
+                combinedArray.set(ch8a, modbusRequest.length);
+                console.log(combinedArray);
+                this.serial.write(combinedArray).then(()=>resolve());
+            }
+        });
+    }
+
+    /**
      * Executes GET command
      * @returns {Promise<InfoGET>}
      */
@@ -295,24 +362,54 @@ export class STMApi {
             if (this.modbusEnabled)
             {
                 //01 03 00 00 00 0D 84 0F
-                this.serial.write(u8a([0x01,0x03,0x00,0x00,0x00,0x0D,0x84,0x0F]))
+
+                var parNumber = 23;
+                var modbusRequest = u8a([0x01,0x03,0x00,0x00,0x00,parNumber]);
+                var checksum = CRC16_2(modbusRequest);
+                var ch8a = u8a([checksum&0xFF,(checksum&0xFF00)>>8]);
+                const combinedArray = new Uint8Array(modbusRequest.length + ch8a.length);
+                combinedArray.set(modbusRequest, 0);
+                combinedArray.set(ch8a, modbusRequest.length);
+                console.log(combinedArray);
+                this.serial.write(combinedArray)
                 .then(() => this.readResponse())
                 .then(async (resp) => {
                     let response = new Uint8Array(resp);
-                    if (response[0] !== 0x1) {
-                        throw new Error('Unexpected MODBUS id');
-                    }
+                    
                     console.log(resp);
                     let info = new InfoGET();
-                    // 01 03 1A 00 04 FE F9 03 32 03 14 FF FF FF FF 11 B6 11 0F FF FF FF FF 00 00 03 E8 13 88 C6 3B (31 bytes)
-                    info.blVersion = (response[2] >> 4) + '.' + (response[2] & 0x0F);
-                    info.revision = (response[3] << 8) | (response[4] );
-                    info.temperature = (response[5] << 8) | (response[6] );
-                    info.inp0 = (response[7] << 8) | (response[8] );
-                    info.inp1 = (response[9] << 8) | (response[10] );
 
-                    console.log(info.temperature)
-                    
+                    // Exclude the last two bytes
+                    const dataToCheck = response.subarray(0, response.length - 2);
+
+                    // Calculate CRC16_2 on the remaining data
+                    const calculatedCRC = CRC16_2(dataToCheck);
+
+                    // Get the last two bytes
+                    const lastTwoBytes = response.subarray(response.length - 2);
+                    // Check if the calculated CRC matches the last two bytes
+                    const isCRCValid = calculatedCRC === (lastTwoBytes[0] + (lastTwoBytes[1] << 8));
+                    console.log(isCRCValid);
+                    if (isCRCValid)
+                    {
+                        // 01 03 1A 00 04 FE F9 03 32 03 14 FF FF FF FF 11 B6 11 0F FF FF FF FF 00 00 03 E8 13 88 C6 3B (31 bytes)
+                        info.blVersion = (response[2] >> 4) + '.' + (response[2] & 0x0F);
+                        info.revision = (response[3] << 8) | (response[4] );
+                        info.temperature = (response[5] << 8) | (response[6] );
+                        info.inp0 = (response[15] << 8) | (response[16] );
+                        info.inp1 = (response[17] << 8) | (response[18] );
+                        info.source = (response[23] << 8) | (response[24] );
+                        info.range_min = (response[25] << 8) | (response[26] );
+                        info.range_max = (response[27] << 8) | (response[28] );
+                        info.c_value = (response[33] << 8) | (response[34] );
+                        info.saturation = (response[35] << 8) | (response[36] );
+                        info.hue_start = (response[37] << 8) | (response[38] );
+                        info.hue_end = (response[39] << 8) | (response[40] );
+                        info.backlight_value = (response[43] << 8) | (response[44] );
+                        info.backlight_saturation = (response[45] << 8) | (response[46] );
+                        info.backlight_hue = (response[47] << 8) | (response[48] );
+                        console.log(info)
+                    }
                     resolve(info);
                 })
                 .catch(reject);
@@ -414,66 +511,73 @@ export class STMApi {
      */
     async cmdREAD(address, bytesCount) {
         return new Promise((resolve, reject) => {
-            let addressFrame;
-
-            if (!Number.isInteger(address) || address < 0) {
-                reject(new Error('Invalid address parameter'));
-                return;
+            if (this.modbusEnabled)
+            {
+                resolve(u8a([0]));
             }
+            else
+            {
+                let addressFrame;
 
-            if (!Number.isInteger(bytesCount) || bytesCount <= 0 || bytesCount > this.readBlockSize) {
-                reject(new Error('Invalid bytesCount parameter'));
-                return;
-            }
+                if (!Number.isInteger(address) || address < 0) {
+                    reject(new Error('Invalid address parameter'));
+                    return;
+                }
 
-            if (!this.serial.isOpen()) {
-                reject(new Error('Connection must be established before sending commands'));
-                return;
-            }
+                if (!Number.isInteger(bytesCount) || bytesCount <= 0 || bytesCount > this.readBlockSize) {
+                    reject(new Error('Invalid bytesCount parameter'));
+                    return;
+                }
 
-            addressFrame = tools.num2a(address, 4);
-            console.log('AF'+u8a(addressFrame));
-            addressFrame.push(this.calcChecksum(addressFrame, false));
-            console.log('with Checksum'+u8a(addressFrame));
-            this.serial.write(u8a([CMD_READ, 0xFF ^ CMD_READ]))
-                .then(() => this.readResponse())
-                .then(response => {
-                    if (response[0] !== ACK) {
-                        throw new Error('Unexpected response while ACK cmdREAD');
-                    }
-                    console.log(u8a(addressFrame));
-                    return this.serial.write(u8a(addressFrame));
-                })
-                .then(() => this.readResponse())
-                .then(response => {
-                    if (response[0] !== ACK) {
-                        throw new Error('Unexpected response while ACK cmdREAD address '+response[0]);
-                    }
-                    // The number of bytes to be read -1 (0 <= N <= 255)
-                    return this.serial.write(u8a([bytesCount - 1, (bytesCount - 1) ^ 0xFF]));
-                })
-                .then(() => this.readResponse())
-                .then(async (response) => {
-                    if (response[0] !== ACK) {
-                        throw new Error('Unexpected response while ACK cmdREAD response');
-                    }
+                if (!this.serial.isOpen()) {
+                    reject(new Error('Connection must be established before sending commands'));
+                    return;
+                }
 
-                    while (response.length < 1+bytesCount) {
-                        let res = await this.readResponse();
-                        response = new Uint8Array([
-                            ...response,
-                            ...res
-                        ]);
-                    }
-
-                    if (this.replyMode) {
-                        for (let i = 0; i < bytesCount; i++) {
-                            await this.readResponse(); // read and ignore
+                addressFrame = tools.num2a(address, 4);
+                console.log('AF'+u8a(addressFrame));
+                addressFrame.push(this.calcChecksum(addressFrame, false));
+                console.log('with Checksum'+u8a(addressFrame));
+                this.serial.write(u8a([CMD_READ, 0xFF ^ CMD_READ]))
+                    .then(() => this.readResponse())
+                    .then(response => {
+                        if (response[0] !== ACK) {
+                            throw new Error('Unexpected response while ACK cmdREAD');
                         }
-                    }
-                    resolve(response);
-                })
-                .catch(reject);
+                        console.log(u8a(addressFrame));
+                        return this.serial.write(u8a(addressFrame));
+                    })
+                    .then(() => this.readResponse())
+                    .then(response => {
+                        if (response[0] !== ACK) {
+                            throw new Error('Unexpected response while ACK cmdREAD address '+response[0]);
+                        }
+                        // The number of bytes to be read -1 (0 <= N <= 255)
+                        return this.serial.write(u8a([bytesCount - 1, (bytesCount - 1) ^ 0xFF]));
+                    })
+                    .then(() => this.readResponse())
+                    .then(async (response) => {
+                        if (response[0] !== ACK) {
+                            throw new Error('Unexpected response while ACK cmdREAD response');
+                        }
+
+                        while (response.length < 1+bytesCount) {
+                            let res = await this.readResponse();
+                            response = new Uint8Array([
+                                ...response,
+                                ...res
+                            ]);
+                        }
+
+                        if (this.replyMode) {
+                            for (let i = 0; i < bytesCount; i++) {
+                                await this.readResponse(); // read and ignore
+                            }
+                        }
+                        resolve(response.slice(1));
+                    })
+                    .catch(reject);
+                }            
         });
     }
 
