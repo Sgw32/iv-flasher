@@ -99,6 +99,7 @@ export class InfoGET {
         this.backlight_value = 0;
         this.backlight_saturation = 0;
         this.backlight_hue = 0;
+        this.data_valid = 0;
     }
 
     getFamily() {
@@ -408,6 +409,7 @@ export class STMApi {
                         info.backlight_value = (response[43] << 8) | (response[44] );
                         info.backlight_saturation = (response[45] << 8) | (response[46] );
                         info.backlight_hue = (response[47] << 8) | (response[48] );
+                        info.data_valid = 1;
                         console.log(info)
                     }
                     resolve(info);

@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "bulma-extensions": "^6.2.7",
+    "firebase": "^10.7.1",
     "jsmodbus": "^4.0.6",
     "modbus-serial": "^8.0.16",
     "svelte-awesome-color-picker": "^2.4.8",
