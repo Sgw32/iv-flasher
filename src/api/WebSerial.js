@@ -80,7 +80,8 @@ export default class WebSerial extends Serial {
 
             this._reader.read()
                 .then((result) => {
-                    console.debug(result);
+                    console.log("Read");
+                    console.log(result.value);
                     resolve(result.value);
                 })
                 .catch(reject);

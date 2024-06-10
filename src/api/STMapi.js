@@ -562,7 +562,7 @@ export class STMApi {
                         if (response[0] !== ACK) {
                             throw new Error('Unexpected response while ACK cmdREAD response');
                         }
-
+                        
                         while (response.length < 1+bytesCount) {
                             let res = await this.readResponse();
                             response = new Uint8Array([

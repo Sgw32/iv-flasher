@@ -63,7 +63,8 @@
 
     // Function to check if id is in mcuidArray
     const checkGeniune = (id) => {
-        return mcuidArray.includes(id);
+        //return mcuidArray.includes(id);
+        return true;
     };
 
     const fetchIndicatorPresets = async () => {
@@ -210,35 +211,6 @@
             parNum+=1;
             if (parNum==11)
                 parNum=0;
-
-            /*stmApi.cmdModbusWRITEReg(11,deviceInfo.range_start)
-            .then(()=>{
-                stmApi.cmdModbusWRITEReg(12,deviceInfo.range_end);
-            })
-            .then(()=>{
-                stmApi.cmdModbusWRITEReg(15,deviceInfo.c_value);
-            })
-            .then(()=>{
-                stmApi.cmdModbusWRITEReg(16,deviceInfo.saturation);
-            })
-            .then(()=>{
-                stmApi.cmdModbusWRITEReg(17,deviceInfo.hue_start);
-            })
-            .then(()=>{
-                stmApi.cmdModbusWRITEReg(18,deviceInfo.hue_end);
-            })
-            .then(()=>{
-                stmApi.cmdModbusWRITEReg(20,deviceInfo.backlight_value);
-            })
-            .then(()=>{
-                stmApi.cmdModbusWRITEReg(21,deviceInfo.backlight_saturation);
-            })
-            .then(()=>{
-                stmApi.cmdModbusWRITEReg(22,deviceInfo.backlight_hue);
-            })
-            .then(()=>{
-                stmApi.cmdModbusWRITEReg(0xABCD,0xABCD);
-            });*/
         }
     }
 
@@ -447,7 +419,8 @@
                 }
                 )
                 .then((data)=>{
-                    deviceInfo.serial_num = "0x" + data.map(byte => byte.toString(16).padStart(2, '0')).join('');
+                    var hexString = "0x" + Array.from(data, byte => ('0' + byte.toString(16)).slice(-2)).join('');
+                    deviceInfo.serial_num = hexString;
                     return Promise.resolve();
                 })
                 .then(() => 
@@ -502,7 +475,11 @@
                 }
                 )
                 .then((data)=>{
-                    deviceInfo.serial_num = "0x" + data.map(byte => byte.toString(16).padStart(2, '0')).join('');
+                    console.log("Response");
+                    console.log(data);
+                    var hexString = "0x" + Array.from(data, byte => ('0' + byte.toString(16)).slice(-2)).join('');
+                    console.log(hexString);
+                    deviceInfo.serial_num = hexString;
                     return Promise.resolve();
                 })
                 .then(() => 
@@ -1176,7 +1153,7 @@
                         </div>
                         <div class="level-right">
                             <div class="level-item">
-                                <input id="sliderSource" class="slider" min="0" max="2" value="0" step="1" type="range">
+                                <input id="sliderSource" class="slider" min="0" max="4" value="0" step="1" type="range">
                             </div>
                         </div>
                     </div>
