@@ -15,6 +15,33 @@
     import { initializeApp } from "firebase/app";
     const firebaseApp = initializeApp(firebaseConfig);
 
+    function getHueColor(hueValue) {
+        const hue = (hueValue / 255) * 360; // Convert 0-255 to 0-360 degrees
+        return `hsl(${hue}, 100%, 50%)`;
+    }
+
+    // Declare variables for DOM elements
+    let sliderBarMode, sliderBarModeOut;
+    let sliderSource, sliderSourceOut;
+    let sliderRangeMin, sliderRangeMinOut;
+    let sliderRangeMax, sliderRangeMaxOut;
+    let sliderH1, sliderH1Out;
+    let sliderH2, sliderH2Out;
+    let sliderH3, sliderH3Out; 
+    let sliderH4, sliderH4Out; 
+
+    let sliderH1Pos, sliderH1PosOut;
+    let sliderH2Pos, sliderH2PosOut;
+    let sliderH3Pos, sliderH3PosOut; 
+    
+    let sliderHStart, sliderHStartOut;
+    let sliderHEnd, sliderHEndOut;
+    let sliderS, sliderSOut;
+    let sliderV, sliderVOut;
+    let sliderHBl, sliderHBlOut;
+    let sliderSBl, sliderSBlOut;
+    let sliderVBl, sliderVBlOut;
+
     // Firestore instance
     const db = getFirestore(firebaseApp);
     
@@ -109,6 +136,7 @@
         inp0: 0,
         inp1: 0,
         source: 0,
+        bar_mode: 0,
         revision: 999,
         range_start: 0,
         range_end: 0,
@@ -118,7 +146,14 @@
         c_value: 0,
         backlight_value: 0,
         backlight_saturation: 0,
-        backlight_hue: 0
+        backlight_hue: 0,
+        color_pos1: 0,
+        color_pos2:  0,
+        color_pos3:  0,
+        color_hues_fill1:  0,
+        color_hues_fill2:  0,
+        color_hues_fill3:  0,
+        color_hues_fill4:  0,
     };
     let stm8selected = false;
     let sending = false;
@@ -165,16 +200,7 @@
         if (isSendDataActive&&isConnected&&settings._modbus)
         {
             deviceInfo.family = "IV";
-            var sliderSource = document.getElementById('sliderSource');
-            var sliderRangeMin = document.getElementById('sliderRangeMin');
-            var sliderRangeMax = document.getElementById('sliderRangeMax');
-            var sliderHStart = document.getElementById('sliderHStart');
-            var sliderHEnd = document.getElementById('sliderHEnd');
-            var sliderS = document.getElementById('sliderS');
-            var sliderV = document.getElementById('sliderV');
-            var sliderHBl = document.getElementById('sliderHBl');
-            var sliderSBl = document.getElementById('sliderSBl');
-            var sliderVBl = document.getElementById('sliderVBl');
+            deviceInfo.bar_mode = sliderBarMode.value*1;
             deviceInfo.source = sliderSource.value*1;
             deviceInfo.range_start = sliderRangeMin.value*1;
             deviceInfo.range_end = sliderRangeMax.value*1;
@@ -185,6 +211,16 @@
             deviceInfo.backlight_value = sliderVBl.value*1;
             deviceInfo.backlight_hue = sliderHBl.value*1;
             deviceInfo.backlight_saturation = sliderSBl.value*1;
+
+            deviceInfo.color_hues_fill1 = sliderH1.value*1;
+            deviceInfo.color_hues_fill2 = sliderH2.value*1;
+            deviceInfo.color_hues_fill3 = sliderH3.value*1;
+            deviceInfo.color_hues_fill4 = sliderH4.value*1;
+
+            deviceInfo.color_pos1 = sliderH1Pos.value*1;
+            deviceInfo.color_pos2 = sliderH2Pos.value*1;
+            deviceInfo.color_pos3 = sliderH3Pos.value*1;
+
             console.log('color value:'+sliderS.value);
             if (parNum==0)
                 stmApi.cmdModbusWRITEReg(11,deviceInfo.range_start);
@@ -205,11 +241,17 @@
             else if(parNum==8)
                 stmApi.cmdModbusWRITEReg(22,deviceInfo.backlight_hue);
             else if(parNum==9)
-                stmApi.cmdModbusWRITEReg(10,deviceInfo.source);
+                stmApi.cmdModbusWRITEReg(10,(deviceInfo.source&0xFF)|((deviceInfo.bar_mode&0xFF)<<8));
             else if(parNum==10)
+                stmApi.cmdModbusWRITEReg(19,(deviceInfo.color_pos1&0xF)|((deviceInfo.color_pos2&0xF)<<4)|((deviceInfo.color_pos3&0xF)<<8));
+            else if(parNum==11)
+                stmApi.cmdModbusWRITEReg(23,(deviceInfo.color_hues_fill1&0xFF)|((deviceInfo.color_hues_fill2&0xFF)<<8));
+            else if(parNum==12)
+                stmApi.cmdModbusWRITEReg(24,(deviceInfo.color_hues_fill3&0xFF)|((deviceInfo.color_hues_fill4&0xFF)<<8));
+            else if(parNum==13)
                 stmApi.cmdModbusWRITEReg(0xABCD,0xABCD);
             parNum+=1;
-            if (parNum==11)
+            if (parNum==14)
                 parNum=0;
         }
     }
@@ -250,6 +292,15 @@
                     deviceInfo.backlight_value = info.backlight_value;
                     deviceInfo.backlight_hue = info.backlight_hue;
                     deviceInfo.backlight_saturation = info.backlight_saturation;
+                    deviceInfo.color_hues_fill1 = info.color_hues_fill1;
+                    deviceInfo.color_hues_fill2 = info.color_hues_fill2;
+                    deviceInfo.color_hues_fill3 = info.color_hues_fill3;
+                    deviceInfo.color_hues_fill4 = info.color_hues_fill4;
+                    deviceInfo.color_pos1 = info.color_pos1;
+                    deviceInfo.color_pos2 = info.color_pos2;
+                    deviceInfo.color_pos3 = info.color_pos3;
+                    deviceInfo.source = info.source;                    
+                    deviceInfo.bar_mode = info.bar_mode;                    
                     updateSliders();
                     return Promise.resolve('IV Modbus');
                 }
@@ -267,6 +318,9 @@
     }
 
     function onToggleGetData(go) {
+        isSendDataActive = false;
+        const other_dataLabel = document.getElementById("sendDataLabel");
+        other_dataLabel.textContent = "Send data";
         const dataLabel = document.getElementById("getDataLabel");
         if (isGetDataActive) {
             // If it's currently active, change to "Get data"
@@ -280,6 +334,9 @@
     }
 
     function onToggleSendData(go) {
+        isGetDataActive = false;
+        const other_dataLabel = document.getElementById("getDataLabel");
+        other_dataLabel.textContent = "Get data";
         const dataLabel = document.getElementById("sendDataLabel");
         if (isSendDataActive) {
             // If it's currently active, change to "Get data"
@@ -371,6 +428,7 @@
             inp0: 0,
             inp1: 0,
             source: 0,
+            bar_mode: 0,
             revision: 999,
             range_start: 0,
             range_end: 0,
@@ -380,7 +438,14 @@
             c_value: 0,
             backlight_value: 0,
             backlight_saturation: 0,
-            backlight_hue: 0
+            backlight_hue: 0,
+            color_pos1: 0,
+            color_pos2:  0,
+            color_pos3:  0,
+            color_hues_fill1:  0,
+            color_hues_fill2:  0,
+            color_hues_fill3:  0,
+            color_hues_fill4:  0,
         };
 
         if (connectionState === DISCONNECTED) {
@@ -580,10 +645,74 @@
             flash: stm8selected ? value : null,
         });
     }
-    
+
+    function onBarModeSelect(event) {
+        let value = event.target.value;
+        if ((value=="1")||(value==1))
+            deviceInfo.bar_mode|=1;
+        else
+            deviceInfo.bar_mode&=~1;
+        console.log(value);
+        console.log(deviceInfo.bar_mode);
+        updateSliderValue(sliderBarMode,deviceInfo.bar_mode);
+        updateSliders();
+    }
+
+    function onSegmentsModeSelect(event) {
+        let value = event.target.value;
+        if ((value=="1")||(value==1))
+            deviceInfo.bar_mode|=2;
+        else
+            deviceInfo.bar_mode&=~2;
+
+        if ((value=="2")||(value==2))
+            deviceInfo.bar_mode|=4;
+        else
+            deviceInfo.bar_mode&=~4;
+        console.log(value);
+        console.log(deviceInfo.bar_mode);
+        updateSliderValue(sliderBarMode,deviceInfo.bar_mode);
+        updateSliders();
+    }
+
+    function loadPreset(value)
+    {
+        // Iterate through presetsData to find the element with the predefined name
+        const foundPreset = presetsData.find(preset => preset.name === value);
+        // Check if the element with the predefined name is found
+        if (foundPreset) {
+            // Assign corresponding fields of deviceInfo based on the found preset
+            deviceInfo.source = foundPreset.source&0xFF;
+            deviceInfo.bar_mode = (foundPreset.source&0xFF00)>>8;
+            deviceInfo.range_start = foundPreset.range_start;
+            deviceInfo.range_end = foundPreset.range_end;
+            deviceInfo.hue_start = foundPreset.hue_start;
+            deviceInfo.hue_end = foundPreset.hue_end;
+            deviceInfo.saturation = foundPreset.saturation;
+            deviceInfo.c_value = foundPreset.c_value;
+            deviceInfo.backlight_value = foundPreset.backlight_value;
+            deviceInfo.backlight_saturation = foundPreset.backlight_saturation;
+            deviceInfo.backlight_hue = foundPreset.backlight_hue;
+            try {
+                deviceInfo.color_hues_fill1 = foundPreset.color_hues_fill1;
+                deviceInfo.color_hues_fill2 = foundPreset.color_hues_fill2;
+                deviceInfo.color_hues_fill3 = foundPreset.color_hues_fill3;
+                deviceInfo.color_hues_fill4 = foundPreset.color_hues_fill4;
+                deviceInfo.color_pos1 = foundPreset.color_pos1;
+                deviceInfo.color_pos2 = foundPreset.color_pos2;
+                deviceInfo.color_pos3 = foundPreset.color_pos3;
+            } catch (error) {
+                console.log(error);
+            }
+        } else {
+            console.log(`Preset with name "${predefinedName}" not found.`);
+        }
+    }
+
     function onTypeSelect(event) {
         let value = event.target.value;
         updateSliderValue(sliderSource,deviceInfo.source);
+        updateSliderValue(sliderBarMode,deviceInfo.bar_mode);
         updateSliderValue(sliderRangeMin,deviceInfo.range_start);
         updateSliderValue(sliderRangeMax,deviceInfo.range_end);
         updateSliderValue(sliderHStart,deviceInfo.hue_start);
@@ -593,9 +722,18 @@
         updateSliderValue(sliderHBl,deviceInfo.backlight_hue);
         updateSliderValue(sliderSBl,deviceInfo.backlight_saturation);
         updateSliderValue(sliderVBl,deviceInfo.backlight_value);
+        updateSliderValue(sliderH1,deviceInfo.color_hues_fill1);
+        updateSliderValue(sliderH2,deviceInfo.color_hues_fill2);
+        updateSliderValue(sliderH3,deviceInfo.color_hues_fill3);
+        updateSliderValue(sliderH4,deviceInfo.color_hues_fill4);
+        updateSliderValue(sliderH1Pos,deviceInfo.color_pos1);
+        updateSliderValue(sliderH2Pos,deviceInfo.color_pos2);
+        updateSliderValue(sliderH3Pos,deviceInfo.color_pos3);
+
         if (value=="vmeter")
         {
             deviceInfo.source = 0;
+            deviceInfo.bar_mode = 1;
             deviceInfo.range_start = 9500;
             deviceInfo.range_end = 15500;
             deviceInfo.hue_start = 15;
@@ -609,6 +747,7 @@
         else if (value=="tmeter")
         {
             deviceInfo.source = 0;
+            deviceInfo.bar_mode = 1;
             deviceInfo.range_start = 0;
             deviceInfo.range_end = 4500;
             deviceInfo.hue_start = 15;
@@ -622,6 +761,7 @@
         else if (value=="pmeter")
         {
             deviceInfo.source = 0;
+            deviceInfo.bar_mode = 1;
             deviceInfo.range_start = 500;
             deviceInfo.range_end = 4500;
             deviceInfo.hue_start = 15;
@@ -634,25 +774,7 @@
         }
         else
         {
-            // Iterate through presetsData to find the element with the predefined name
-            const foundPreset = presetsData.find(preset => preset.name === value);
-
-            // Check if the element with the predefined name is found
-            if (foundPreset) {
-                // Assign corresponding fields of deviceInfo based on the found preset
-                deviceInfo.source = foundPreset.source;
-                deviceInfo.range_start = foundPreset.range_start;
-                deviceInfo.range_end = foundPreset.range_end;
-                deviceInfo.hue_start = foundPreset.hue_start;
-                deviceInfo.hue_end = foundPreset.hue_end;
-                deviceInfo.saturation = foundPreset.saturation;
-                deviceInfo.c_value = foundPreset.c_value;
-                deviceInfo.backlight_value = foundPreset.backlight_value;
-                deviceInfo.backlight_saturation = foundPreset.backlight_saturation;
-                deviceInfo.backlight_hue = foundPreset.backlight_hue;
-            } else {
-                console.log(`Preset with name "${predefinedName}" not found.`);
-            }
+            loadPreset(value);
         }
         updateSliders();
     }
@@ -664,18 +786,8 @@
 
     function updateSliders()
     {
-        var sliderSource = document.getElementById('sliderSource');
-        var sliderRangeMin = document.getElementById('sliderRangeMin');
-        var sliderRangeMax = document.getElementById('sliderRangeMax');
-        var sliderHStart = document.getElementById('sliderHStart');
-        var sliderHEnd = document.getElementById('sliderHEnd');
-        var sliderS = document.getElementById('sliderS');
-        var sliderV = document.getElementById('sliderV');
-        var sliderHBl = document.getElementById('sliderHBl');
-        var sliderSBl = document.getElementById('sliderSBl');
-        var sliderVBl = document.getElementById('sliderVBl');
-
         updateSliderValue(sliderSource,deviceInfo.source);
+        updateSliderValue(sliderBarMode,deviceInfo.bar_mode);
         updateSliderValue(sliderRangeMin,deviceInfo.range_start);
         updateSliderValue(sliderRangeMax,deviceInfo.range_end);
         updateSliderValue(sliderHStart,deviceInfo.hue_start);
@@ -685,50 +797,45 @@
         updateSliderValue(sliderHBl,deviceInfo.backlight_hue);
         updateSliderValue(sliderSBl,deviceInfo.backlight_saturation);
         updateSliderValue(sliderVBl,deviceInfo.backlight_value);
+        updateSliderValue(sliderH1, deviceInfo.color_hues_fill1);
+        updateSliderValue(sliderH2, deviceInfo.color_hues_fill2);
+        updateSliderValue(sliderH3, deviceInfo.color_hues_fill3);
+        updateSliderValue(sliderH4, deviceInfo.color_hues_fill4);
+        updateSliderValue(sliderH1Pos, deviceInfo.color_pos1);
+        updateSliderValue(sliderH2Pos, deviceInfo.color_pos2);
+        updateSliderValue(sliderH3Pos, deviceInfo.color_pos3);
         updateCaptions();
     }
 
     function updateCaptions()
-    {
-        var sliderSource = document.getElementById('sliderSource');
-        var sliderSourceOut = document.querySelector('output[for="sliderSource"]');
-
-        var sliderRangeMin = document.getElementById('sliderRangeMin');
-        var sliderRangeMinOut = document.querySelector('output[for="sliderRangeMin"]');
-        var sliderRangeMax = document.getElementById('sliderRangeMax');
-        var sliderRangeMaxOut = document.querySelector('output[for="sliderRangeMax"]');        
-
-        var sliderHStart = document.getElementById('sliderHStart');
-        var sliderHStartOut = document.querySelector('output[for="sliderHStart"]');
-
-        var sliderHEnd = document.getElementById('sliderHEnd');
-        var sliderHEndOut = document.querySelector('output[for="sliderHEnd"]');
-
-        var sliderS = document.getElementById('sliderS');
-        var sliderSOut = document.querySelector('output[for="sliderS"]');
-
-        var sliderV = document.getElementById('sliderV');
-        var sliderVOut = document.querySelector('output[for="sliderV"]');
-
-        var sliderHBl = document.getElementById('sliderHBl');
-        var sliderHBlOut = document.querySelector('output[for="sliderHBl"]');
-
-        var sliderSBl = document.getElementById('sliderSBl');
-        var sliderSBlOut = document.querySelector('output[for="sliderSBl"]');
-
-        var sliderVBl = document.getElementById('sliderVBl');
-        var sliderVBlOut = document.querySelector('output[for="sliderVBl"]');
-        
+    {   
+        updateSliderOutput(sliderBarModeOut,sliderBarMode,"Bar mode: ");
         updateSliderOutput(sliderSourceOut,sliderSource,"Source: ");
         updateSliderOutput(sliderRangeMinOut,sliderRangeMin,"Range Min(V): ");
         updateSliderOutput(sliderRangeMaxOut,sliderRangeMax,"Range Max(V): ");
         updateSliderOutput(sliderHStartOut,sliderHStart,"Hue Start: ");
+        updateSliderOutput(sliderH1Out,sliderH1,"Hue1: ");
+        updateSliderOutput(sliderH2Out,sliderH2,"Hue2: ");
+        updateSliderOutput(sliderH3Out,sliderH3,"Hue3: ");
+        updateSliderOutput(sliderH4Out,sliderH4,"Hue4: ");
+        updateSliderOutput(sliderH1PosOut,sliderH1Pos,"H1Pos: ");
+        updateSliderOutput(sliderH2PosOut,sliderH2Pos,"H2Pos: ");
+        updateSliderOutput(sliderH3PosOut,sliderH3Pos,"H3Pos: ");
         updateSliderOutput(sliderHEndOut,sliderHEnd,"Hue End: ");
         updateSliderOutput(sliderSOut,sliderS,"C.Sat: ");
         updateSliderOutput(sliderVOut,sliderV,"C.Val: ");
         updateSliderOutput(sliderHBlOut,sliderHBl,"Bl.C.Hue: ");
         updateSliderOutput(sliderSBlOut,sliderSBl,"Bl.C.Sat: ");
         updateSliderOutput(sliderVBlOut,sliderVBl,"Bl.C.Val: ");
+        // Set color for hue labels
+        deviceInfo.bar_mode = sliderBarMode.value*1;
+        sliderH1Out.style.color = getHueColor(sliderH1.value);
+        sliderH2Out.style.color = getHueColor(sliderH2.value);
+        sliderH3Out.style.color = getHueColor(sliderH3.value);
+        sliderH4Out.style.color = getHueColor(sliderH4.value);
+        sliderHStartOut.style.color = getHueColor(sliderHStart.value);
+        sliderHEndOut.style.color = getHueColor(sliderHEnd.value);
+        sliderHBlOut.style.color = getHueColor(sliderHBl.value);
     }
 
     function updateSliderOutput(el,sl,txt)
@@ -741,96 +848,73 @@
     fetchGeniuneIDs();
     fetchIndicatorPresets();
 
-    var sliderSource = document.getElementById('sliderSource');
-    var sliderSourceOut = document.querySelector('output[for="sliderSource"]');
+    sliderBarMode = document.getElementById('sliderBarMode');
+    sliderBarModeOut = document.querySelector('output[for="sliderBarMode"]');
 
-    var sliderRangeMin = document.getElementById('sliderRangeMin');
-    var sliderRangeMinOut = document.querySelector('output[for="sliderRangeMin"]');
-    var sliderRangeMax = document.getElementById('sliderRangeMax');
-    var sliderRangeMaxOut = document.querySelector('output[for="sliderRangeMax"]');
-    
+    sliderSource = document.getElementById('sliderSource');
+    sliderSourceOut = document.querySelector('output[for="sliderSource"]');
 
-    var sliderHStart = document.getElementById('sliderHStart');
-    var sliderHStartOut = document.querySelector('output[for="sliderHStart"]');
+    sliderRangeMin = document.getElementById('sliderRangeMin');
+    sliderRangeMinOut = document.querySelector('output[for="sliderRangeMin"]');
 
-    var sliderHEnd = document.getElementById('sliderHEnd');
-    var sliderHEndOut = document.querySelector('output[for="sliderHEnd"]');
+    sliderRangeMax = document.getElementById('sliderRangeMax');
+    sliderRangeMaxOut = document.querySelector('output[for="sliderRangeMax"]');
 
-    var sliderS = document.getElementById('sliderS');
-    var sliderSOut = document.querySelector('output[for="sliderS"]');
+    sliderHStart = document.getElementById('sliderHStart');
+    sliderHStartOut = document.querySelector('output[for="sliderHStart"]');
 
-    var sliderV = document.getElementById('sliderV');
-    var sliderVOut = document.querySelector('output[for="sliderV"]');
+    sliderH1 = document.getElementById('sliderH1');
+    sliderH1Out = document.querySelector('output[for="sliderH1"]');
 
-    var sliderHBl = document.getElementById('sliderHBl');
-    var sliderHBlOut = document.querySelector('output[for="sliderHBl"]');
+    sliderH2 = document.getElementById('sliderH2');
+    sliderH2Out = document.querySelector('output[for="sliderH2"]');
 
-    var sliderSBl = document.getElementById('sliderSBl');
-    var sliderSBlOut = document.querySelector('output[for="sliderSBl"]');
+    sliderH3 = document.getElementById('sliderH3');
+    sliderH3Out = document.querySelector('output[for="sliderH3"]');
 
-    var sliderVBl = document.getElementById('sliderVBl');
-    var sliderVBlOut = document.querySelector('output[for="sliderVBl"]');
+    sliderH4 = document.getElementById('sliderH4');
+    sliderH4Out = document.querySelector('output[for="sliderH4"]');
 
-    // Add an event listener to detect changes in the slider value
-    sliderSource.addEventListener('input', function() {
-      // Update the output caption with the current slider value
-      updateSliderOutput(sliderSourceOut,sliderSource,"Source: ");
+    sliderH1Pos = document.getElementById('sliderH1Pos');
+    sliderH1PosOut = document.querySelector('output[for="sliderH1Pos"]');
+
+    sliderH2Pos = document.getElementById('sliderH2Pos');
+    sliderH2PosOut = document.querySelector('output[for="sliderH2Pos"]');
+
+    sliderH3Pos = document.getElementById('sliderH3Pos');
+    sliderH3PosOut = document.querySelector('output[for="sliderH3Pos"]');
+
+    sliderHEnd = document.getElementById('sliderHEnd');
+    sliderHEndOut = document.querySelector('output[for="sliderHEnd"]');
+
+    sliderS = document.getElementById('sliderS');
+    sliderSOut = document.querySelector('output[for="sliderS"]');
+
+    sliderV = document.getElementById('sliderV');
+    sliderVOut = document.querySelector('output[for="sliderV"]');
+
+    sliderHBl = document.getElementById('sliderHBl');
+    sliderHBlOut = document.querySelector('output[for="sliderHBl"]');
+
+    sliderSBl = document.getElementById('sliderSBl');
+    sliderSBlOut = document.querySelector('output[for="sliderSBl"]');
+
+    sliderVBl = document.getElementById('sliderVBl');
+    sliderVBlOut = document.querySelector('output[for="sliderVBl"]');
+
+    // Select all slider elements with the class 'slider'
+    const sliders = document.querySelectorAll('.slider');
+    // Attach the 'input' event listener to each slider
+    sliders.forEach((slider) => {
+        slider.addEventListener('input', updateCaptions);
     });
 
-    // Add an event listener to detect changes in the slider value
-    sliderRangeMin.addEventListener('input', function() {
-      // Update the output caption with the current slider value
-      updateSliderOutput(sliderRangeMinOut,sliderRangeMin,"Range Min(V): ");
-    });
+    if (presetsData.length>0)
+    {
+        loadPreset(presetsData[0]);
+    }
 
-    // Add an event listener to detect changes in the slider value
-    sliderRangeMax.addEventListener('input', function() {
-      // Update the output caption with the current slider value
-      updateSliderOutput(sliderRangeMaxOut,sliderRangeMax,"Range Max(V): ");
-    });
-
-    // Add an event listener to detect changes in the slider value
-    sliderHStart.addEventListener('input', function() {
-      // Update the output caption with the current slider value
-      updateSliderOutput(sliderHStartOut,sliderHStart,"Hue Start: ");
-    });
-
-    // Add an event listener to detect changes in the slider value
-    sliderHEnd.addEventListener('input', function() {
-      // Update the output caption with the current slider value
-      updateSliderOutput(sliderHEndOut,sliderHEnd,"Hue End: ");
-    });
-
-    // Add an event listener to detect changes in the slider value
-    sliderS.addEventListener('input', function() {
-      // Update the output caption with the current slider value
-      updateSliderOutput(sliderSOut,sliderS,"C.Sat: ");
-    });
-
-    // Add an event listener to detect changes in the slider value
-    sliderV.addEventListener('input', function() {
-      // Update the output caption with the current slider value
-      updateSliderOutput(sliderVOut,sliderV,"C.Val: ");
-    });
-
-    // Add an event listener to detect changes in the slider value
-    sliderHBl.addEventListener('input', function() {
-      // Update the output caption with the current slider value
-      updateSliderOutput(sliderHBlOut,sliderHBl,"Bl.C.Hue: ");
-    });
-
-    // Add an event listener to detect changes in the slider value
-    sliderSBl.addEventListener('input', function() {
-      // Update the output caption with the current slider value
-      updateSliderOutput(sliderSBlOut,sliderSBl,"Bl.C.Sat: ");
-    });
-
-    // Add an event listener to detect changes in the slider value
-    sliderVBl.addEventListener('input', function() {
-      // Update the output caption with the current slider value
-      updateSliderOutput(sliderVBlOut,sliderVBl,"Bl.C.Val: ");
-    });
-
+    updateSliders();
     updateCaptions();
 
     setInterval(modbusGetDataTimer, 1000);
@@ -860,6 +944,9 @@
     .disabled {
         pointer-events: none;
         opacity: 0.4;
+    }
+    .slider {
+        --slider-track-background: 0;
     }
 </style>
 
@@ -1072,13 +1159,13 @@
                     </div>
                 </div>
             </div>
-            <div class="column">
+            <div class="column" style="min-width: 360px;">
                 <div class="box">
                     <p class="title is-5">Log Messages</p>
                     <pre>{logs}</pre>
                 </div>
             </div>
-            <div class="column is-narrow" style="min-width: 360px;">
+            <div class="column " style="min-width: 360px;">
                 <div class="box" id="devinfo">
                     <p class="title is-5">Setup</p>
                     <div class="level is-mobile">
@@ -1095,8 +1182,6 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="level is-mobile">
                         <div class="level-left">
                             <div class="level-item">
                                 <div class="label">Revision:</div>
@@ -1108,6 +1193,49 @@
                             </div>
                         </div>
                     </div>
+
+
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <div class="label">Bar mode:</div>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <div class="select">
+                                    <select
+                                        id="barModeSelect"
+                                        on:change={onBarModeSelect}>
+                                        <option value="0" selected>Dot mode</option>
+                                        <option value="1" >Bar mode</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <div class="label">Segments mode:</div>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <div class="select">
+                                    <select
+                                        id="segmentsModeSelect"
+                                        on:change={onSegmentsModeSelect}>
+                                        <option value="0" selected>Gradient</option>
+                                        <option value="1" >4-segments</option>
+                                        <option value="2" >Color by value</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="level is-mobile">
                         <div class="level-left">
                             <div class="level-item">
@@ -1131,8 +1259,6 @@
                                 <div class="value">{deviceInfo.inp0}</div>
                             </div>
                         </div>
-                    </div>
-                    <div class="level is-mobile">
                         <div class="level-left">
                             <div class="level-item">
                                 <div class="label">Input 1, V:</div>
@@ -1144,7 +1270,6 @@
                             </div>
                         </div>
                     </div>
-
                     <div class="level is-mobile">
                         <div class="level-left">
                             <div class="level-item">
@@ -1153,11 +1278,20 @@
                         </div>
                         <div class="level-right">
                             <div class="level-item">
-                                <input id="sliderSource" class="slider" min="0" max="4" value="0" step="1" type="range">
+                                <input id="sliderSource" class="slider" min="0" max="255" value="0" step="1" type="range">
+                            </div>
+                        </div>
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderBarMode" id="sliderBarModeTooltip">0</output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderBarMode" class="slider" min="0" max="255" value="0" step="1" type="range">
                             </div>
                         </div>
                     </div>
-
                     <div class="level is-mobile">
                         <div class="level-left">
                             <div class="level-item">
@@ -1184,7 +1318,7 @@
                         </div>
                     </div>
 
-                    <div class="level is-mobile">
+                    <div class="level is-mobile" class:is-hidden={(deviceInfo.bar_mode&2)}>
                         <div class="level-left">
                             <div class="level-item">
                                 <output class="label" for="sliderHStart" id="sliderHStartTooltip">50</output>
@@ -1192,12 +1326,9 @@
                         </div>
                         <div class="level-right">
                             <div class="level-item">
-                                <input id="sliderHStart" class="slider" min="0" max="255" value="15" step="1" type="range">
+                                <input id="sliderHStart" class="slider" style="--slider-track-color=blue" min="0" max="255" value="15" step="1" type="range">
                             </div>  
                         </div>
-                    </div>
-
-                    <div class="level is-mobile">
                         <div class="level-left">
                             <div class="level-item">
                                 <output class="label" for="sliderHEnd" id="sliderHEndTooltip">50</output>
@@ -1206,6 +1337,88 @@
                         <div class="level-right">
                             <div class="level-item">
                                 <input id="sliderHEnd" class="slider" min="0" max="255" value="56" step="1" type="range">
+                            </div>  
+                        </div>
+                    </div>
+
+                    <div class="level is-mobile" class:is-hidden={!(deviceInfo.bar_mode&2)}>
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderH1" id="sliderH1Tooltip"></output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderH1" class="slider" style="--slider-track-color=blue" min="0" max="255" value="15" step="1" type="range">
+                            </div>  
+                        </div>
+                    </div>
+
+                    <div class="level is-mobile" class:is-hidden={!(deviceInfo.bar_mode&2)}>
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderH2" id="sliderH2Tooltip"></output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderH2" class="slider" style="--slider-track-color=blue" min="0" max="255" value="15" step="1" type="range">
+                            </div>  
+                        </div>
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderH1Pos" id="sliderH1PosTooltip"></output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderH1Pos" class="slider" style="--slider-track-color=blue" min="0" max="15" value="2" step="1" type="range">
+                            </div>  
+                        </div>
+                    </div>
+
+                    <div class="level is-mobile" class:is-hidden={!(deviceInfo.bar_mode&2)}>
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderH3" id="sliderH3Tooltip"></output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderH3" class="slider" style="--slider-track-color=blue" min="0" max="255" value="15" step="1" type="range">
+                            </div>  
+                        </div>
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderH2Pos" id="sliderH2PosTooltip"></output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderH2Pos" class="slider" style="--slider-track-color=blue" min="0" max="15" value="2" step="1" type="range">
+                            </div>  
+                        </div>
+                    </div>
+
+                    <div class="level is-mobile" class:is-hidden={!(deviceInfo.bar_mode&2)}>
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderH4" id="sliderH4PosTooltip"></output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderH4" class="slider" style="--slider-track-color=blue" min="0" max="255" value="15" step="1" type="range">
+                            </div>  
+                        </div>
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderH3Pos" id="sliderH3Tooltip"></output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderH3Pos" class="slider" style="--slider-track-color=blue" min="0" max="15" value="2" step="1" type="range">
                             </div>  
                         </div>
                     </div>
@@ -1221,9 +1434,6 @@
                                 <input id="sliderS" class="slider" min="0" max="255" value="219" step="1" type="range">
                             </div>  
                         </div>
-                    </div>
-
-                    <div class="level is-mobile">
                         <div class="level-left">
                             <div class="level-item">
                                 <output class="label" for="sliderV" id="sliderVTooltip">50</output>
@@ -1235,7 +1445,6 @@
                             </div>  
                         </div>
                     </div>
-
                     <div class="level is-mobile">
                         <div class="level-left">
                             <div class="level-item">
@@ -1248,7 +1457,6 @@
                             </div>  
                         </div>
                     </div>
-
                     <div class="level is-mobile">
                         <div class="level-left">
                             <div class="level-item">
@@ -1260,9 +1468,6 @@
                                 <input id="sliderSBl" class="slider" min="0" max="255" value="255" step="1" type="range">
                             </div>  
                         </div>
-                    </div>
-
-                    <div class="level is-mobile">
                         <div class="level-left">
                             <div class="level-item">
                                 <output class="label" for="sliderVBl" id="sliderVBlTooltip">50</output>
@@ -1274,7 +1479,6 @@
                             </div>  
                         </div>
                     </div>
-                    
                 </div>
             </div>
         </div>

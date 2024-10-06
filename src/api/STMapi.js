@@ -86,6 +86,7 @@ export class InfoGET {
         this.inp0 = 0.0;
         this.inp1 = 0.0;
         this.source = 0;
+        this.bar_mode = 0;
         this.range_min = 0.0;
         this.range_max = 0.0;
         this.revision = 0;
@@ -100,6 +101,13 @@ export class InfoGET {
         this.backlight_saturation = 0;
         this.backlight_hue = 0;
         this.data_valid = 0;
+        this.color_pos1 = 0;
+        this.color_pos2 = 0;
+        this.color_pos3 = 0;
+        this.color_hues_fill1 = 0;
+        this.color_hues_fill2 = 0;
+        this.color_hues_fill3 = 0;
+        this.color_hues_fill4 = 0;
     }
 
     getFamily() {
@@ -364,16 +372,17 @@ export class STMApi {
             {
                 //01 03 00 00 00 0D 84 0F
 
-                var parNumber = 23;
+                var parNumber = 25;
                 var modbusRequest = u8a([0x01,0x03,0x00,0x00,0x00,parNumber]);
                 var checksum = CRC16_2(modbusRequest);
                 var ch8a = u8a([checksum&0xFF,(checksum&0xFF00)>>8]);
+                var expectedLength = this.calculateModbusResponseSize(3,parNumber);
                 const combinedArray = new Uint8Array(modbusRequest.length + ch8a.length);
                 combinedArray.set(modbusRequest, 0);
                 combinedArray.set(ch8a, modbusRequest.length);
                 console.log(combinedArray);
                 this.serial.write(combinedArray)
-                .then(() => this.readResponse())
+                .then(() => this.readResponseWithTimeout(expectedLength,1000))
                 .then(async (resp) => {
                     let response = new Uint8Array(resp);
                     
@@ -399,16 +408,24 @@ export class STMApi {
                         info.temperature = (response[5] << 8) | (response[6] );
                         info.inp0 = (response[15] << 8) | (response[16] );
                         info.inp1 = (response[17] << 8) | (response[18] );
-                        info.source = (response[23] << 8) | (response[24] );
+                        info.source = (response[24]);
+                        info.bar_mode = (response[23]);
                         info.range_min = (response[25] << 8) | (response[26] );
                         info.range_max = (response[27] << 8) | (response[28] );
                         info.c_value = (response[33] << 8) | (response[34] );
                         info.saturation = (response[35] << 8) | (response[36] );
                         info.hue_start = (response[37] << 8) | (response[38] );
                         info.hue_end = (response[39] << 8) | (response[40] );
+                        info.color_pos1 = response[42]&0xf;
+                        info.color_pos2 = (response[42]&0xf0)>>4;
+                        info.color_pos3 = response[41]&0xf;
                         info.backlight_value = (response[43] << 8) | (response[44] );
                         info.backlight_saturation = (response[45] << 8) | (response[46] );
                         info.backlight_hue = (response[47] << 8) | (response[48] );
+                        info.color_hues_fill1 = response[49];
+                        info.color_hues_fill2 = response[50];
+                        info.color_hues_fill3 = response[51];
+                        info.color_hues_fill4 = response[52];
                         info.data_valid = 1;
                         console.log(info)
                     }
@@ -817,6 +834,88 @@ export class STMApi {
                 .catch(reject);
         });
     }
+
+    /**
+     * Function to calculate the expected Modbus response size based on function code and number of registers.
+     * @param {number} functionCode - The Modbus function code (e.g., 3 for Read Holding Registers)
+     * @param {number} numberOfRegisters - The number of registers requested.
+     * @returns {number} - The expected size of the response packet in bytes.
+     */
+    calculateModbusResponseSize(functionCode, numberOfRegisters) {
+        let dataBytes = 0;
+        
+        // Handle function codes that return data
+        switch (functionCode) {
+            case 3: // Read Holding Registers
+            case 4: // Read Input Registers
+                dataBytes = numberOfRegisters * 2; // Each register is 2 bytes
+                return 1 + 1 + 1 + dataBytes + 2; // Slave address + Function code + Byte count + Data bytes + CRC
+
+            case 6: // Write Single Register
+                // Response is echo of request (6 bytes)
+                return 1 + 1 + 2 + 2 + 2; // Slave address + Function code + Register address + Register value + CRC
+
+            case 16: // Write Multiple Registers
+                // Response is 6 bytes: Slave address, function code, starting address, number of registers written, CRC
+                return 1 + 1 + 2 + 2 + 2; // Slave address + Function code + Starting address + Number of registers written + CRC
+
+            // Add more cases for other function codes if needed
+
+            default:
+                throw new Error("Unsupported function code");
+        }
+    }
+
+    /**
+     * Serial read with expected length and timeout
+     * @param {number} expectedLength - The number of bytes to read
+     * @param {number} timeoutMs - Timeout in milliseconds
+     * @returns {Promise<Uint8Array>} - Resolves with the response bytes, or rejects on timeout/error
+     */
+    async readResponseWithTimeout(expectedLength, timeoutMs) {
+        return new Promise((resolve, reject) => {
+            let result = [];
+            let timeoutId;
+            let bytesRead = 0;
+
+            const onTimeout = () => {
+                if (timeoutId) clearTimeout(timeoutId);
+                reject(new Error(`Timeout: expected ${expectedLength} bytes, but got ${bytesRead} bytes`));
+            };
+
+            const readLoop = () => {
+                this.serial.read()
+                    .then(response => {
+                        if (response && response.length > 0) {
+                            result = result.concat(Array.from(response));
+                            bytesRead += response.length;
+
+                            if (bytesRead >= expectedLength) {
+                                if (timeoutId) clearTimeout(timeoutId);
+                                resolve(new Uint8Array(result.slice(0, expectedLength)));
+                            } else {
+                                // Continue reading if not enough bytes are received
+                                readLoop();
+                            }
+                        } else {
+                            // No data received, continue reading
+                            readLoop();
+                        }
+                    })
+                    .catch(err => {
+                        if (timeoutId) clearTimeout(timeoutId);
+                        reject(err);
+                    });
+            };
+
+            // Start the timeout timer
+            timeoutId = setTimeout(onTimeout, timeoutMs);
+
+            // Start the reading loop
+            readLoop();
+        });
+    }
+
 
     /**
      * Serial read wrapper for single response with automatic echo mode

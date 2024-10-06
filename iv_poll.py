@@ -9,9 +9,8 @@ def modbus_poll(slave_address, register_address, number_of_registers, baudrate=9
     instrument.serial.baudrate = baudrate
     time.sleep(1)
     data = instrument.read_registers(register_address, number_of_registers)
-    instrument.write_register(9,1,functioncode=6)
-    instrument.write_register(10,0x04 | 0x0100,functioncode=6)
-    instrument.write_register(32,3500,functioncode=6)
+    instrument.write_register(9,0,functioncode=6)
+    instrument.write_register(10,257,functioncode=6)
     instrument.write_register(0xABCD,0xABCD,functioncode=6)
     while True:
         try:
@@ -35,7 +34,7 @@ if __name__ == "__main__":
     number_of_registers = 13  # Change this to the number of registers you want to read
 
     # Set your serial port parameters
-    serial_port = 'COM6'  # Change this to your serial port
+    serial_port = 'COM3'  # Change this to your serial port
     baudrate = 115200  # Change this to your baudrate
     
     # Poll the Modbus device
