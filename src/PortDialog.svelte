@@ -55,6 +55,9 @@
             
         </header>
         <section class="modal-card-body is-paddingless">
+            <div class="content has-text-centered" style="margin-bottom: 1em;">
+                <strong>Choose from ports below</strong>
+            </div>
             {#each devices as dev, i}
                 <div
                     class="card"
@@ -63,10 +66,10 @@
                     <div class="card-content">
                         <div class="level">
                             <div class="level-left">
-                                <div class="level-item">
+                                <button class="button is-fullwidth is-outlined is-info" style="display: flex; align-items: center; gap: 0.5em;">
                                     <span class="icon"><i class="fa fa-plug" /></span>
-                                </div>
-                                <div class="level-item"><span>{dev}</span></div>
+                                    <span>{dev}</span>
+                                </button>
                             </div>
                         </div>
                     </div>

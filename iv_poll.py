@@ -9,8 +9,9 @@ def modbus_poll(slave_address, register_address, number_of_registers, baudrate=9
     instrument.serial.baudrate = baudrate
     time.sleep(1)
     data = instrument.read_registers(register_address, number_of_registers)
-    instrument.write_register(9,0,functioncode=6)
-    instrument.write_register(10,257,functioncode=6)
+    instrument.write_register(9,1,functioncode=6)
+    instrument.write_register(8,2587,functioncode=6)
+    instrument.write_register(25,2587,functioncode=6)
     instrument.write_register(0xABCD,0xABCD,functioncode=6)
     while True:
         try:

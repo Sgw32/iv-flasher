@@ -204,17 +204,14 @@ export class STMApi {
      * @returns {Promise}
      */
     async disconnect() {
-        return new Promise((resolve, reject) => {
-            let signal = {}
-            signal[DTR_PIN] = PIN_LOW; //BOOT=0
-            signal[RTS_PIN] = PIN_HIGH; //RESET=1
-            this.serial.control(signal)
-                .then(() => this.resetTarget())
-                .then(() => this.serial.close())
-                .then(resolve)
-                .catch(reject);
-        });
-
+        try {
+            await this.serial.control({ [DTR_PIN]: PIN_LOW, [RTS_PIN]: PIN_HIGH });
+            await this.resetTarget();
+            await this.serial.close(); // use await
+        } catch (e) {
+            logger.log('Disconnect error:', e);
+            throw e;
+        }
     }
 
     /**
@@ -873,49 +870,34 @@ export class STMApi {
      * @returns {Promise<Uint8Array>} - Resolves with the response bytes, or rejects on timeout/error
      */
     async readResponseWithTimeout(expectedLength, timeoutMs) {
-        return new Promise((resolve, reject) => {
-            let result = [];
-            let timeoutId;
-            let bytesRead = 0;
+        let result = [];
+        let bytesRead = 0;
 
-            const onTimeout = () => {
-                if (timeoutId) clearTimeout(timeoutId);
-                reject(new Error(`Timeout: expected ${expectedLength} bytes, but got ${bytesRead} bytes`));
-            };
+        const timeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Timeout: expected ${expectedLength} bytes, but got ${bytesRead}`)), timeoutMs)
+        );
 
-            const readLoop = () => {
-                this.serial.read()
-                    .then(response => {
-                        if (response && response.length > 0) {
-                            result = result.concat(Array.from(response));
-                            bytesRead += response.length;
+        const read = async () => {
+            while (bytesRead < expectedLength) {
+                const chunk = await this.serial.read();
+                if (!chunk || chunk.length === 0) continue;
+                result = result.concat(Array.from(chunk));
+                bytesRead += chunk.length;
+            }
+            return new Uint8Array(result.slice(0, expectedLength));
+        };
 
-                            if (bytesRead >= expectedLength) {
-                                if (timeoutId) clearTimeout(timeoutId);
-                                resolve(new Uint8Array(result.slice(0, expectedLength)));
-                            } else {
-                                // Continue reading if not enough bytes are received
-                                readLoop();
-                            }
-                        } else {
-                            // No data received, continue reading
-                            readLoop();
-                        }
-                    })
-                    .catch(err => {
-                        if (timeoutId) clearTimeout(timeoutId);
-                        reject(err);
-                    });
-            };
-
-            // Start the timeout timer
-            timeoutId = setTimeout(onTimeout, timeoutMs);
-
-            // Start the reading loop
-            readLoop();
-        });
+        try {
+            return await Promise.race([read(), timeout]);
+        } catch (e) {
+            try {
+                await this.serial.close(); // uses the fixed async close from WebSerial
+            } catch (closeErr) {
+                logger.log('Error during serial close after timeout:', closeErr);
+            }
+            throw e;
+        }
     }
-
 
     /**
      * Serial read wrapper for single response with automatic echo mode

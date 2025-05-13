@@ -8,7 +8,7 @@ const MODBUS = 'modbus';
 class Settings {
     constructor() {
         this._replyMode = localStorage.getItem(REPLY_MODE) === "true" || false;
-        this._baudrate = localStorage.getItem(BAUDRATE) || "9600";
+        this._baudrate = localStorage.getItem(BAUDRATE) || "115200";
         this._mcutype = localStorage.getItem(MCUTYPE) || "Artery";
         this._startAddress = localStorage.getItem(START_ADDRESS) || "0x8000000";
         this._modbus = localStorage.getItem(MODBUS) === "true" || false;

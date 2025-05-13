@@ -1,4 +1,4 @@
-import Serial from './Serial'
+import Serial from './Serial';
 
 function info(msg) {
     console.info('[WebSerial] ' + msg);
@@ -13,6 +13,7 @@ export default class WebSerial extends Serial {
         this._port = port;
         this._reader = null;
         this._writer = null;
+        this._reading = false;
     }
 
     init() {
@@ -20,131 +21,99 @@ export default class WebSerial extends Serial {
         navigator.serial.ondisconnect = this.onDisconnect.bind(this);
     }
 
-    /**
-     * Check if a connection is opened.
-     */
     isOpen() {
         return this._writer !== null;
     }
 
-    /**
-     * Open the serial port
-     * @param {Object} parameter Parameter
-     */
     open(parameter) {
-        return new Promise((resolve, reject) => {
-            info('-> open ' + JSON.stringify(parameter));
-            this._port.open(parameter)
-                .then(() => {
-                    this._reader = this._port.readable.getReader();
-                    this._writer = this._port.writable.getWriter();
-                    info('<- open');
-                    resolve();
-                })
-                .catch(reject);
+        return this._port.open(parameter)
+            .then(() => {
+                this._reader = this._port.readable.getReader();
+                this._writer = this._port.writable.getWriter();
+                this._reading = true;
+                info('<- open');
+            });
+    }
+
+    async close() {
+        info('-> close');
+        try {
+            this._reading = false;
+
+            if (this._reader) {
+                await this._reader.cancel();
+                this._reader.releaseLock();
+            }
+
+            if (this._writer) {
+                await this._writer.close();
+                this._writer.releaseLock();
+            }
+
+            await this._port.close();
+
+            this._reader = null;
+            this._writer = null;
+
+            info('<- close');
+            if (typeof this.onDisconnect === 'function') {
+                this.onDisconnect();
+            }
+        } catch (err) {
+            this._reader = null;
+            this._writer = null;
+            info('<- close reject');
+            throw err;
+        }
+    }
+
+    read() {
+        return new Promise(async (resolve, reject) => {
+            if (!this._reading) return reject(new Error('Read aborted'));
+            info('-> read');
+
+            try {
+                const result = await this._reader.read();
+                if (result.done || !this._reading) return reject(new Error('Reader cancelled or stopped'));
+                console.log('Read');
+                console.log(result.value);
+                resolve(result.value);
+            } catch (e) {
+                reject(e);
+            }
         });
     }
 
-    /**
-     * Close the current connection
-     */
-    close() {
+    readWithTimeout(timeoutMilliseconds) {
         return new Promise((resolve, reject) => {
-            info('-> close');
-            this._reader.cancel();
-            this._writer.close();
-            Promise.all([this._reader.closed, this._writer.closed])
-                .then(() => this._port.close())
-                .then(() => {
-                    this._reader = null;
-                    this._writer = null;
-                    info('<- close');
-                    this.onDisconnect();
-                    resolve();
+            if (!this._reading) return reject(new Error('Read aborted'));
+            info('-> readWithTimeout');
+
+            const timeoutId = setTimeout(() => {
+                reject(new Error('Serial read operation timed out'));
+            }, timeoutMilliseconds);
+
+            this._reader.read()
+                .then((result) => {
+                    clearTimeout(timeoutId);
+                    if (result.done || !this._reading) {
+                        reject(new Error('Reader cancelled or stopped'));
+                    } else {
+                        resolve(result.value);
+                    }
                 })
-                .catch((err) => {
-                    this._reader = null;
-                    this._writer = null;
-                    info('<- close reject');
+                .catch(err => {
+                    clearTimeout(timeoutId);
                     reject(err);
                 });
         });
     }
 
-    /**
-     * Read data from the serial port
-     */
-    read() {
-        return new Promise(async (resolve, reject) => {
-            info('-> read');
-
-            this._reader.read()
-                .then((result) => {
-                    console.log("Read");
-                    console.log(result.value);
-                    resolve(result.value);
-                })
-                .catch(reject);
-        });
-    }
-
-    /**
-     * Read data from the serial port with a timeout
-     * @param {number} timeoutMilliseconds - Timeout in milliseconds
-     * @returns {Promise<Buffer>} - Resolves with the received data or rejects on error or timeout
-     */
-    readWithTimeout(timeoutMilliseconds) {
-        return new Promise(async (resolve, reject) => {
-            info('-> readWithTimeout');
-            
-            // Create a timeout promise
-            const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => {
-                    reject(new Error('Serial read operation timed out'));
-                }, timeoutMilliseconds);
-            });
-
-            // Race between the read operation and the timeout promise
-            Promise.race([this._reader.read(), timeoutPromise])
-                .then((result) => {
-                    if (result instanceof Error) {
-                        reject(result); // Propagate any error from the timeout promise
-                    } else {
-                        console.debug(result);
-                        resolve(result.value);
-                    }
-                })
-                .catch(reject);
-        });
-    }
-
-    /**
-     * Writes data to serial port
-     * @param {Uint8Array} data Data to send.
-     */
     write(data) {
-        return new Promise((resolve, reject) => {
-            info('-> write');
-            console.debug(data);
-            this._writer.write(data.buffer)
-                .then(resolve)
-                .catch(reject);
-        });
+        return this._writer.write(data.buffer);
     }
 
-    /**
-     * Set the control signals of the current connection
-     * @param {dtr:boolean, rts:boolean} lineParams signal parameters
-     */
     control(lineParams) {
-        return new Promise((resolve, reject) => {
-            info('-> control');
-            console.debug(lineParams)
-            this._port.setSignals(lineParams)
-                .then(() => {
-                    resolve();
-                })
-                .catch(reject);
-        });
+        return this._port.setSignals(lineParams);
     }
 }

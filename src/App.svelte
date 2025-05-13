@@ -42,6 +42,8 @@
     let sliderSBl, sliderSBlOut;
     let sliderVBl, sliderVBlOut;
 
+    let selectTypePreset; // Pre-declare the function
+
     // Firestore instance
     const db = getFirestore(firebaseApp);
     
@@ -97,6 +99,7 @@
     const fetchIndicatorPresets = async () => {
         const querySnapshot = await getDocs(collection(db, "iv-indicators-presets"));
         presetsData = [];
+        let firstPreset = "";
         querySnapshot.forEach((doc) => {
         const data = doc.data();
         
@@ -105,9 +108,17 @@
         presetsData.push(data);
         // Parse "mcuid" field and store it in the array
         const p_name = data.name;
+        if (firstPreset=="")
+            firstPreset=p_name;
         addOption(p_name, p_name, false);
         });
         console.log(presetsData);
+        // Ensure the function is defined before calling it
+        if (typeof selectTypePreset === "function") {
+            selectTypePreset(firstPreset);
+        } else {
+            console.error("selectTypePreset is not defined yet.");
+        }
     };
 
     const DISCONNECTED = 'disconnected';
@@ -607,6 +618,11 @@
             
         } else {
             stmApi.disconnect().catch((err) => {
+                // if (stmApi.serial.isOpen()) {
+                //     stmApi.serial.close(function (err) {
+                //         console.log('port closed', err);
+                //     });
+                // }
                 if (err!=undefined)
                 {
                     error = err.message;    
@@ -614,6 +630,19 @@
                 console.log(err)
             });
         }
+    }
+
+    function onConnectBoot()
+    {
+        
+        settings._modbus = false;
+        onConnect();
+    }
+
+    function onConnectMODBUS()
+    {
+        settings._modbus = true;
+        onConnect();
     }
 
     function onErase() {
@@ -709,8 +738,7 @@
         }
     }
 
-    function onTypeSelect(event) {
-        let value = event.target.value;
+    selectTypePreset = (value) => {
         updateSliderValue(sliderSource,deviceInfo.source);
         updateSliderValue(sliderBarMode,deviceInfo.bar_mode);
         updateSliderValue(sliderRangeMin,deviceInfo.range_start);
@@ -777,6 +805,11 @@
             loadPreset(value);
         }
         updateSliders();
+    }
+
+    function onTypeSelect(event) {
+        let value = event.target.value;
+        selectTypePreset(value);
     }
 
     function updateSliderValue(sl,val)
@@ -995,11 +1028,28 @@
 
                 <a
                     class="navbar-item"
-                    class:disabled={isConnecting || !selectedPort}
-                    on:click={onConnect}>
+                    class:is-hidden={isConnected || isConnecting || (selectedPort==null)}
+                    on:click={onConnectBoot}>
                     <span class="icon"><i
                             class="fa {isConnected ? 'fa-unlink' : 'fa-link'}" /></span>
-                    <span>{isConnected ? 'Disconnect' : 'Connect'}</span>
+                    <span>Connect Boot</span>
+                </a>
+                <a
+                    class="navbar-item"
+                    class:is-hidden={isConnected || isConnecting || (selectedPort==null)}
+                    on:click={onConnectMODBUS}>
+                    <span class="icon"><i
+                            class="fa {isConnected ? 'fa-unlink' : 'fa-link'}" /></span>
+                    <span>Connect MODBUS</span>
+                </a>
+                <a
+                    class="navbar-item"
+                    class:is-hidden={!isConnected || isConnecting || (selectedPort==null)}
+                    class:disabled={isConnecting || isConnecting || (selectedPort==null)}
+                    on:click={onConnect}>
+                    <span class="icon"><i
+                            class="fa fa-unlink" /></span>
+                    <span>Disconnect</span>
                 </a>
                 <a
                     class="navbar-item"
