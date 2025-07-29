@@ -42,7 +42,12 @@
     let sliderSBl, sliderSBlOut;
     let sliderVBl, sliderVBlOut;
 
+    let sliderBeta, sliderBetaOut;
+    let sliderNominalR, sliderNominalROut;
+
     let selectTypePreset; // Pre-declare the function
+
+    let showLogMessages = true; // Controls visibility of log messages section
 
     // Firestore instance
     const db = getFirestore(firebaseApp);
@@ -165,6 +170,8 @@
         color_hues_fill2:  0,
         color_hues_fill3:  0,
         color_hues_fill4:  0,
+        beta_coefficient:  4000,
+        nominal_resistance: 1000
     };
     let stm8selected = false;
     let sending = false;
@@ -232,6 +239,9 @@
             deviceInfo.color_pos2 = sliderH2Pos.value*1;
             deviceInfo.color_pos3 = sliderH3Pos.value*1;
 
+            deviceInfo.beta_coefficient = sliderBeta.value*1;
+            deviceInfo.nominal_resistance = sliderNominalR.value*1;
+
             console.log('color value:'+sliderS.value);
             if (parNum==0)
                 stmApi.cmdModbusWRITEReg(11,deviceInfo.range_start);
@@ -260,9 +270,22 @@
             else if(parNum==12)
                 stmApi.cmdModbusWRITEReg(24,(deviceInfo.color_hues_fill3&0xFF)|((deviceInfo.color_hues_fill4&0xFF)<<8));
             else if(parNum==13)
+                stmApi.cmdModbusWRITEReg(31,(deviceInfo.nominal_resistance&0xFFFF));
+            else if(parNum==14)
+                stmApi.cmdModbusWRITEReg(32,(deviceInfo.beta_coefficient&0xFFFF));
+            else if(parNum==15)
                 stmApi.cmdModbusWRITEReg(0xABCD,0xABCD);
+            else if(parNum==16)
+            {
+                isGetDataActive = false;
+                const other_dataLabel = document.getElementById("getDataLabel");
+                other_dataLabel.textContent = "Get data";
+                const dataLabel = document.getElementById("sendDataLabel");
+                dataLabel.textContent = "Send data";
+                isSendDataActive = false;
+            }
             parNum+=1;
-            if (parNum==14)
+            if (parNum==17)
                 parNum=0;
         }
     }
@@ -310,9 +333,17 @@
                     deviceInfo.color_pos1 = info.color_pos1;
                     deviceInfo.color_pos2 = info.color_pos2;
                     deviceInfo.color_pos3 = info.color_pos3;
+                    deviceInfo.beta_coefficient = info.beta_coefficient;
+                    deviceInfo.nominal_resistance = info.nominal_resistance;
                     deviceInfo.source = info.source;                    
                     deviceInfo.bar_mode = info.bar_mode;                    
                     updateSliders();
+                    isGetDataActive = false;
+                    isSendDataActive = false;
+                    const other_dataLabel = document.getElementById("sendDataLabel");
+                    other_dataLabel.textContent = "Send data";
+                    const dataLabel = document.getElementById("getDataLabel");
+                    dataLabel.textContent = "Get data";
                     return Promise.resolve('IV Modbus');
                 }
             }
@@ -346,6 +377,7 @@
 
     function onToggleSendData(go) {
         isGetDataActive = false;
+        parNum = 0;
         const other_dataLabel = document.getElementById("getDataLabel");
         other_dataLabel.textContent = "Get data";
         const dataLabel = document.getElementById("sendDataLabel");
@@ -457,6 +489,8 @@
             color_hues_fill2:  0,
             color_hues_fill3:  0,
             color_hues_fill4:  0,
+            beta_coefficient:  4000,
+            nominal_resistance: 1000
         };
 
         if (connectionState === DISCONNECTED) {
@@ -603,6 +637,8 @@
                     if (!checkGeniune(deviceInfo.serial_num))
                         log("Someone is cheating! Functions are limited, write your own software!");
                     log("Modbus enabled");
+                    isSendDataActive = false;
+                    isGetDataActive = true;
                 })
                 .catch((err) => {
                     log(err);
@@ -733,6 +769,14 @@
             } catch (error) {
                 console.log(error);
             }
+            try {
+                if (foundPreset.beta_coefficient!=undefined)
+                    deviceInfo.beta_coefficient = foundPreset.beta_coefficient;
+                if (foundPreset.nominal_resistance!=undefined)
+                    deviceInfo.nominal_resistance = foundPreset.nominal_resistance;
+            } catch (error) {
+                console.log(error);
+            }
         } else {
             console.log(`Preset with name "${predefinedName}" not found.`);
         }
@@ -757,6 +801,8 @@
         updateSliderValue(sliderH1Pos,deviceInfo.color_pos1);
         updateSliderValue(sliderH2Pos,deviceInfo.color_pos2);
         updateSliderValue(sliderH3Pos,deviceInfo.color_pos3);
+        updateSliderValue(sliderBeta,deviceInfo.beta_coefficient);
+        updateSliderValue(sliderNominalR,deviceInfo.nominal_resistance);
 
         if (value=="vmeter")
         {
@@ -807,6 +853,11 @@
         updateSliders();
     }
 
+    // Add this with other functions in the script section
+    function toggleLogMessages() {
+        showLogMessages = !showLogMessages;
+    }
+
     function onTypeSelect(event) {
         let value = event.target.value;
         selectTypePreset(value);
@@ -837,6 +888,8 @@
         updateSliderValue(sliderH1Pos, deviceInfo.color_pos1);
         updateSliderValue(sliderH2Pos, deviceInfo.color_pos2);
         updateSliderValue(sliderH3Pos, deviceInfo.color_pos3);
+        updateSliderValue(sliderBeta, deviceInfo.beta_coefficient);
+        updateSliderValue(sliderNominalR, deviceInfo.nominal_resistance);
         updateCaptions();
     }
 
@@ -860,6 +913,8 @@
         updateSliderOutput(sliderHBlOut,sliderHBl,"Bl.C.Hue: ");
         updateSliderOutput(sliderSBlOut,sliderSBl,"Bl.C.Sat: ");
         updateSliderOutput(sliderVBlOut,sliderVBl,"Bl.C.Val: ");
+        updateSliderOutput(sliderBetaOut, sliderBeta, "Beta: ");
+        updateSliderOutput(sliderNominalROut, sliderNominalR, "Nominal Resistance: ");
         // Set color for hue labels
         deviceInfo.bar_mode = sliderBarMode.value*1;
         sliderH1Out.style.color = getHueColor(sliderH1.value);
@@ -934,6 +989,12 @@
 
     sliderVBl = document.getElementById('sliderVBl');
     sliderVBlOut = document.querySelector('output[for="sliderVBl"]');
+
+    sliderBeta = document.getElementById('sliderBeta');
+    sliderBetaOut = document.querySelector('output[for="sliderBeta"]');
+
+    sliderNominalR = document.getElementById('sliderNominalR');
+    sliderNominalROut = document.querySelector('output[for="sliderNominalR"]');
 
     // Select all slider elements with the class 'slider'
     const sliders = document.querySelectorAll('.slider');
@@ -1090,7 +1151,7 @@
                     <span class="icon"><i class="fa fa-car" /></span>
                     <span id="sendDataLabel">Send data</span>
                 </a>
-                <div class="navbar-item">
+                <div class="navbar-item" style="display: none;">
                    <div class="select">
                         <select id="mcuType" bind:value={settings.mcutype}>
                             <option value="Artery">Artery</option>
@@ -1209,15 +1270,44 @@
                     </div>
                 </div>
             </div>
-            <div class="column" style="min-width: 360px;">
-                <div class="box">
-                    <p class="title is-5">Log Messages</p>
-                    <pre>{logs}</pre>
+
+            {#if showLogMessages}
+                <div class="column" style="min-width: 360px;">
+                    <div class="box">
+                        <div class="level">
+                            <div class="level-left">
+                                <p class="title is-5">Log Messages</p>
+                            </div>
+                            <div class="level-right">
+                                <button class="button is-small" on:click={toggleLogMessages}>
+                                    <span class="icon">
+                                        <i class="fa fa-times"></i>
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                        <pre>{logs}</pre>
+                    </div>
                 </div>
-            </div>
-            <div class="column " style="min-width: 360px;">
+            {/if}
+
+            <div class="column" style="min-width: 360px;">
                 <div class="box" id="devinfo">
-                    <p class="title is-5">Setup</p>
+                    <div class="level">
+                        <div class="level-left">
+                            <p class="title is-5">Setup</p>
+                        </div>
+                        {#if !showLogMessages}
+                            <div class="level-right">
+                                <button class="button is-small" on:click={toggleLogMessages}>
+                                    <span class="icon">
+                                        <i class="fa fa-list"></i>
+                                    </span>
+                                    <span>Show Logs</span>
+                                </button>
+                            </div>
+                        {/if}
+                    </div>
                     <div class="level is-mobile">
                         <div class="level-left">
                             <div class="level-item">
@@ -1364,6 +1454,31 @@
                         <div class="level-right">
                             <div class="level-item">
                                 <input id="sliderRangeMax" class="slider" min="0" max="30000" value="15500" step="100" type="range">
+                            </div>  
+                        </div>
+                    </div>
+
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderBeta" id="sliderBetaTooltip">Beta</output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderBeta" class="slider" min="3000" max="5000" value="4000" step="10" type="range">
+                            </div>  
+                        </div>
+                    </div>
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderNominalR" id="sliderNominalRTooltip">NominalR</output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderNominalR" class="slider" min="100" max="32000" value="1000" step="100" type="range">
                             </div>  
                         </div>
                     </div>

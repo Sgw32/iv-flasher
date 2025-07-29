@@ -108,6 +108,8 @@ export class InfoGET {
         this.color_hues_fill2 = 0;
         this.color_hues_fill3 = 0;
         this.color_hues_fill4 = 0;
+        this.beta_coefficient=  4000;
+        this.nominal_resistance= 1000;
     }
 
     getFamily() {
@@ -187,6 +189,7 @@ export class STMApi {
                     
                 })
                 .then(() => this.activateBootloader())
+                .then(() => this.delay_nb(500))
                 .then(resolve)
                 .catch(error => {
                     if (this.serial.isOpen()) {
@@ -369,7 +372,7 @@ export class STMApi {
             {
                 //01 03 00 00 00 0D 84 0F
 
-                var parNumber = 25;
+                var parNumber = 35;
                 var modbusRequest = u8a([0x01,0x03,0x00,0x00,0x00,parNumber]);
                 var checksum = CRC16_2(modbusRequest);
                 var ch8a = u8a([checksum&0xFF,(checksum&0xFF00)>>8]);
@@ -423,6 +426,9 @@ export class STMApi {
                         info.color_hues_fill2 = response[50];
                         info.color_hues_fill3 = response[51];
                         info.color_hues_fill4 = response[52];
+                        info.nominal_resistance = (response[65] << 8) | (response[66] );
+                        info.beta_coefficient = (response[67] << 8) | (response[68] );
+                        
                         info.data_valid = 1;
                         console.log(info)
                     }
