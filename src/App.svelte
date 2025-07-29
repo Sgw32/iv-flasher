@@ -44,6 +44,9 @@
 
     let sliderBeta, sliderBetaOut;
     let sliderNominalR, sliderNominalROut;
+    let sliderTau, sliderTauOut;
+    let sliderSegOff, sliderSegOffOut;
+    let backlightEffectSelect;
 
     let selectTypePreset; // Pre-declare the function
 
@@ -171,7 +174,10 @@
         color_hues_fill3:  0,
         color_hues_fill4:  0,
         beta_coefficient:  4000,
-        nominal_resistance: 1000
+        nominal_resistance: 1000,
+        tau_coefficient: 0,
+        segments_offset: 0,
+        backlight_effect: 0
     };
     let stm8selected = false;
     let sending = false;
@@ -241,6 +247,9 @@
 
             deviceInfo.beta_coefficient = sliderBeta.value*1;
             deviceInfo.nominal_resistance = sliderNominalR.value*1;
+            deviceInfo.tau_coefficient = sliderTau.value*1;
+            deviceInfo.segments_offset = sliderSegOff.value*1;
+            deviceInfo.backlight_effect = parseInt(backlightEffectSelect.value);
 
             console.log('color value:'+sliderS.value);
             if (parNum==0)
@@ -274,8 +283,14 @@
             else if(parNum==14)
                 stmApi.cmdModbusWRITEReg(32,(deviceInfo.beta_coefficient&0xFFFF));
             else if(parNum==15)
-                stmApi.cmdModbusWRITEReg(0xABCD,0xABCD);
+                stmApi.cmdModbusWRITEReg(33,deviceInfo.tau_coefficient);
             else if(parNum==16)
+                stmApi.cmdModbusWRITEReg(34,deviceInfo.segments_offset);
+            else if(parNum==17)
+                stmApi.cmdModbusWRITEReg(35,deviceInfo.backlight_effect);
+            else if(parNum==18)
+                stmApi.cmdModbusWRITEReg(0xABCD,0xABCD);
+            else if(parNum==19)
             {
                 isGetDataActive = false;
                 const other_dataLabel = document.getElementById("getDataLabel");
@@ -285,7 +300,7 @@
                 isSendDataActive = false;
             }
             parNum+=1;
-            if (parNum==17)
+            if (parNum==20)
                 parNum=0;
         }
     }
@@ -335,8 +350,11 @@
                     deviceInfo.color_pos3 = info.color_pos3;
                     deviceInfo.beta_coefficient = info.beta_coefficient;
                     deviceInfo.nominal_resistance = info.nominal_resistance;
-                    deviceInfo.source = info.source;                    
-                    deviceInfo.bar_mode = info.bar_mode;                    
+                    deviceInfo.tau_coefficient = info.tau_coefficient;
+                    deviceInfo.segments_offset = info.segments_offset;
+                    deviceInfo.backlight_effect = info.backlight_effect;
+                    deviceInfo.source = info.source;
+                    deviceInfo.bar_mode = info.bar_mode;
                     updateSliders();
                     isGetDataActive = false;
                     isSendDataActive = false;
@@ -490,7 +508,10 @@
             color_hues_fill3:  0,
             color_hues_fill4:  0,
             beta_coefficient:  4000,
-            nominal_resistance: 1000
+            nominal_resistance: 1000,
+            tau_coefficient: 0,
+            segments_offset: 0,
+            backlight_effect: 0
         };
 
         if (connectionState === DISCONNECTED) {
@@ -740,6 +761,10 @@
         updateSliders();
     }
 
+    function onBacklightEffectSelect(event) {
+        deviceInfo.backlight_effect = event.target.value*1;
+    }
+
     function loadPreset(value)
     {
         // Iterate through presetsData to find the element with the predefined name
@@ -774,6 +799,12 @@
                     deviceInfo.beta_coefficient = foundPreset.beta_coefficient;
                 if (foundPreset.nominal_resistance!=undefined)
                     deviceInfo.nominal_resistance = foundPreset.nominal_resistance;
+                if (foundPreset.tau_coefficient!=undefined)
+                    deviceInfo.tau_coefficient = foundPreset.tau_coefficient;
+                if (foundPreset.segments_offset!=undefined)
+                    deviceInfo.segments_offset = foundPreset.segments_offset;
+                if (foundPreset.backlight_effect!=undefined)
+                    deviceInfo.backlight_effect = foundPreset.backlight_effect;
             } catch (error) {
                 console.log(error);
             }
@@ -803,6 +834,10 @@
         updateSliderValue(sliderH3Pos,deviceInfo.color_pos3);
         updateSliderValue(sliderBeta,deviceInfo.beta_coefficient);
         updateSliderValue(sliderNominalR,deviceInfo.nominal_resistance);
+        updateSliderValue(sliderTau,deviceInfo.tau_coefficient);
+        updateSliderValue(sliderSegOff,deviceInfo.segments_offset);
+        if (backlightEffectSelect)
+            backlightEffectSelect.value = deviceInfo.backlight_effect;
 
         if (value=="vmeter")
         {
@@ -890,6 +925,10 @@
         updateSliderValue(sliderH3Pos, deviceInfo.color_pos3);
         updateSliderValue(sliderBeta, deviceInfo.beta_coefficient);
         updateSliderValue(sliderNominalR, deviceInfo.nominal_resistance);
+        updateSliderValue(sliderTau, deviceInfo.tau_coefficient);
+        updateSliderValue(sliderSegOff, deviceInfo.segments_offset);
+        if (backlightEffectSelect)
+            backlightEffectSelect.value = deviceInfo.backlight_effect;
         updateCaptions();
     }
 
@@ -915,6 +954,8 @@
         updateSliderOutput(sliderVBlOut,sliderVBl,"Bl.C.Val: ");
         updateSliderOutput(sliderBetaOut, sliderBeta, "Beta: ");
         updateSliderOutput(sliderNominalROut, sliderNominalR, "Nominal Resistance: ");
+        updateSliderOutput(sliderTauOut, sliderTau, "Tau: ");
+        updateSliderOutput(sliderSegOffOut, sliderSegOff, "SegOff: ");
         // Set color for hue labels
         deviceInfo.bar_mode = sliderBarMode.value*1;
         sliderH1Out.style.color = getHueColor(sliderH1.value);
@@ -995,6 +1036,17 @@
 
     sliderNominalR = document.getElementById('sliderNominalR');
     sliderNominalROut = document.querySelector('output[for="sliderNominalR"]');
+
+    sliderTau = document.getElementById('sliderTau');
+    sliderTauOut = document.querySelector('output[for="sliderTau"]');
+
+    sliderSegOff = document.getElementById('sliderSegOff');
+    sliderSegOffOut = document.querySelector('output[for="sliderSegOff"]');
+
+    backlightEffectSelect = document.getElementById('backlightEffectSelect');
+    backlightEffectSelect.addEventListener('change', () => {
+        deviceInfo.backlight_effect = parseInt(backlightEffectSelect.value);
+    });
 
     // Select all slider elements with the class 'slider'
     const sliders = document.querySelectorAll('.slider');
@@ -1479,7 +1531,60 @@
                         <div class="level-right">
                             <div class="level-item">
                                 <input id="sliderNominalR" class="slider" min="100" max="32000" value="1000" step="100" type="range">
-                            </div>  
+                            </div>
+                        </div>
+                    </div>
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderTau" id="sliderTauTooltip">Tau</output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderTau" class="slider" min="0" max="1000" value="0" step="1" type="range">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <output class="label" for="sliderSegOff" id="sliderSegOffTooltip">SegOff</output>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <input id="sliderSegOff" class="slider" min="0" max="255" value="0" step="1" type="range">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="level is-mobile">
+                        <div class="level-left">
+                            <div class="level-item">
+                                <div class="label">Backlight effect:</div>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            <div class="level-item">
+                                <div class="select">
+                                    <select id="backlightEffectSelect" on:change={onBacklightEffectSelect}>
+                                        <option value="0">None</option>
+                                        <option value="1">Cycle</option>
+                                        <option value="2">Fire</option>
+                                        <option value="3">Magic</option>
+                                        <option value="4">Plasma</option>
+                                        <option value="5">Clouds</option>
+                                        <option value="6">Afterglow</option>
+                                        <option value="7">Color Shift</option>
+                                        <option value="8">Segment Fire</option>
+                                        <option value="9">Rainbow</option>
+                                        <option value="10">Glitter</option>
+                                        <option value="11">Wave</option>
+                                        <option value="12">Breathing</option>
+                                        <option value="13">Confetti</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

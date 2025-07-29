@@ -110,6 +110,9 @@ export class InfoGET {
         this.color_hues_fill4 = 0;
         this.beta_coefficient=  4000;
         this.nominal_resistance= 1000;
+        this.tau_coefficient = 0;
+        this.segments_offset = 0;
+        this.backlight_effect = 0;
     }
 
     getFamily() {
@@ -428,7 +431,10 @@ export class STMApi {
                         info.color_hues_fill4 = response[52];
                         info.nominal_resistance = (response[65] << 8) | (response[66] );
                         info.beta_coefficient = (response[67] << 8) | (response[68] );
-                        
+                        info.tau_coefficient = (response[69] << 8) | (response[70] );
+                        info.segments_offset = response[71];
+                        info.backlight_effect = response[72];
+
                         info.data_valid = 1;
                         console.log(info)
                     }
