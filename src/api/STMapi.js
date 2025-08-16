@@ -192,7 +192,7 @@ export class STMApi {
                     
                 })
                 .then(() => this.activateBootloader())
-                .then(() => this.delay_nb(500))
+                .then(() => this.delay_nb(2000))
                 .then(resolve)
                 .catch(error => {
                     if (this.serial.isOpen()) {
